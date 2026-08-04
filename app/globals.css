@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand palette: warm paper, deep moss green, muted blush */
+  --color-canvas: #fbf9f6;
+  --color-canvas-alt: #f3ede5;
+  --color-canvas-deep: #ebe3d8;
+
+  --color-ink: #1a1715;
+  --color-ink-soft: #6c625a;
+  --color-ink-faint: #9a9088;
+
+  --color-moss-50: #f2f5f3;
+  --color-moss-100: #dde5df;
+  --color-moss-400: #6b8a77;
+  --color-moss-600: #3f5a4a;
+  --color-moss-700: #33473b;
+  --color-moss-900: #1e2b24;
+
+  --color-blush-50: #fdf6f6;
+  --color-blush-100: #f6e4e5;
+  --color-blush-300: #e3aeb4;
+  --color-blush-500: #c9707c;
+  --color-blush-600: #b25a66;
+
+  --color-gold: #b08d57;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-playfair), ui-serif, Georgia, serif;
+
+  --shadow-soft: 0 1px 2px rgb(26 23 21 / 0.04), 0 12px 32px -12px rgb(26 23 21 / 0.12);
+  --shadow-lift: 0 2px 4px rgb(26 23 21 / 0.05), 0 24px 48px -16px rgb(26 23 21 / 0.18);
+
+  --animate-fade-up: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 1s ease-out both;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+  /* Offset anchor targets so the sticky header never covers a section heading. */
+  scroll-padding-top: 5.5rem;
+}
+
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Respect users who prefer reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Visible, on-brand focus ring for keyboard users. */
+:focus-visible {
+  outline: 2px solid var(--color-moss-700);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+@utility container-page {
+  width: 100%;
+  margin-inline: auto;
+  max-width: 80rem;
+  /* Scales the gutter from 20px on phones to 40px on desktop without a media query. */
+  padding-inline: clamp(1.25rem, 4vw, 2.5rem);
+}
