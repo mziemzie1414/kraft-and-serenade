@@ -1,3 +1,13 @@
+/** Site-wide settings, not tied to one part of the page. */
+export const ADMIN_SETTINGS = [
+  {
+    name: "Colours",
+    href: "/admin/theme",
+    description:
+      "The palette used across the whole site: surfaces, text, primary, accent and the star rating.",
+  },
+] as const;
+
 /**
  * Landing page sections that can be edited from the admin panel.
  *

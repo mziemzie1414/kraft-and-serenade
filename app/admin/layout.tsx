@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ADMIN_SECTIONS } from "./sections";
+import { ADMIN_SECTIONS, ADMIN_SETTINGS } from "./sections";
 
 export const metadata: Metadata = {
   title: "Admin",
@@ -14,6 +14,34 @@ export const metadata: Metadata = {
  */
 export const dynamic = "force-dynamic";
 
+function NavGroup({
+  heading,
+  items,
+}: {
+  heading: string;
+  items: readonly { name: string; href: string }[];
+}) {
+  return (
+    <div>
+      <h2 className="px-3 text-xs font-semibold tracking-wide text-ink-faint uppercase">
+        {heading}
+      </h2>
+      <ul className="mt-1 flex flex-wrap gap-1 lg:flex-col">
+        {items.map((item) => (
+          <li key={item.href}>
+            <Link
+              href={item.href}
+              className="block rounded-lg px-3 py-2 text-sm font-medium text-ink-soft transition-colors hover:bg-canvas-alt hover:text-ink"
+            >
+              {item.name}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default function AdminLayout({ children }: LayoutProps<"/admin">) {
   return (
     <div className="flex min-h-dvh flex-1 flex-col bg-canvas-alt lg:flex-row">
@@ -25,19 +53,9 @@ export default function AdminLayout({ children }: LayoutProps<"/admin">) {
           <p className="mt-1 text-xs text-ink-faint">Kraft &amp; Serenade</p>
         </div>
 
-        <nav aria-label="Sections" className="px-3 pb-6">
-          <ul className="flex flex-wrap gap-1 lg:flex-col">
-            {ADMIN_SECTIONS.map((section) => (
-              <li key={section.href}>
-                <Link
-                  href={section.href}
-                  className="block rounded-lg px-3 py-2 text-sm font-medium text-ink-soft transition-colors hover:bg-canvas-alt hover:text-ink"
-                >
-                  {section.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
+        <nav aria-label="Admin" className="space-y-5 px-3 pb-6">
+          <NavGroup heading="Settings" items={ADMIN_SETTINGS} />
+          <NavGroup heading="Page sections" items={ADMIN_SECTIONS} />
         </nav>
 
         <div className="hidden px-6 pb-6 lg:block">

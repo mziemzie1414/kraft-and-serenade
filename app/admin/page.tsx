@@ -1,5 +1,38 @@
 import Link from "next/link";
-import { ADMIN_SECTIONS } from "./sections";
+import { ADMIN_SECTIONS, ADMIN_SETTINGS } from "./sections";
+
+function CardList({
+  heading,
+  items,
+}: {
+  heading: string;
+  items: readonly { name: string; href: string; description: string }[];
+}) {
+  return (
+    <section className="mt-8">
+      <h2 className="text-xs font-semibold tracking-wide text-ink-faint uppercase">
+        {heading}
+      </h2>
+      <ul className="mt-3 space-y-3">
+        {items.map((item) => (
+          <li key={item.href}>
+            <Link
+              href={item.href}
+              className="block rounded-xl border border-canvas-deep bg-canvas p-5 transition-shadow hover:shadow-soft"
+            >
+              <span className="font-display text-base font-medium text-ink">
+                {item.name}
+              </span>
+              <span className="mt-1 block text-sm leading-relaxed text-ink-soft">
+                {item.description}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 export default function AdminHomePage() {
   return (
@@ -12,23 +45,8 @@ export default function AdminHomePage() {
         save.
       </p>
 
-      <ul className="mt-8 space-y-3">
-        {ADMIN_SECTIONS.map((section) => (
-          <li key={section.href}>
-            <Link
-              href={section.href}
-              className="block rounded-xl border border-canvas-deep bg-canvas p-5 transition-shadow hover:shadow-soft"
-            >
-              <span className="font-display text-base font-medium text-ink">
-                {section.name}
-              </span>
-              <span className="mt-1 block text-sm leading-relaxed text-ink-soft">
-                {section.description}
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <CardList heading="Settings" items={ADMIN_SETTINGS} />
+      <CardList heading="Page sections" items={ADMIN_SECTIONS} />
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import { BRAND } from "@/lib/data";
+import { getThemeContent } from "@/lib/theme-queries";
+import { themeCss } from "@/lib/theme";
 import "./globals.css";
 
 const inter = Inter({
@@ -40,10 +42,13 @@ export const metadata: Metadata = {
 };
 
 /**
- * Root layout. Only owns the document shell and fonts — the storefront chrome
- * lives in `app/(site)/layout.tsx` so `/admin` can opt out of it.
+ * Root layout. Owns the document shell, fonts and the colour palette — the
+ * storefront chrome lives in `app/(site)/layout.tsx` so `/admin` can opt out
+ * of it.
  */
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const theme = await getThemeContent();
+
   return (
     <html
       lang="en"
@@ -52,6 +57,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       data-scroll-behavior="smooth"
       className={`${inter.variable} ${playfair.variable} h-full`}
     >
+      {/* Overrides the palette Tailwind compiled into the stylesheet. React
+          hoists this into <head>, and `href` keeps it deduplicated. */}
+      <style href="theme-palette" precedence="high">
+        {themeCss(theme)}
+      </style>
       <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );

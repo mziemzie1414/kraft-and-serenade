@@ -12,6 +12,47 @@ datasource db {
   provider = "postgresql"
 }
 
+/// The site colour palette. One row, addressed by the fixed id in lib/theme.ts.
+///
+/// Each column is one `--color-*` custom property from app/globals.css. The
+/// root layout writes them onto `html:root`, which overrides the compiled
+/// Tailwind defaults, so changing a value here recolours the whole site.
+model Theme {
+  id String @id
+
+  /// Surfaces
+  canvas     String
+  canvasAlt  String
+  canvasDeep String
+
+  /// Text
+  ink      String
+  inkSoft  String
+  inkFaint String
+
+  /// Primary
+  moss50  String
+  moss100 String
+  moss400 String
+  moss600 String
+  moss700 String
+  moss900 String
+
+  /// Accent
+  blush50  String
+  blush100 String
+  blush300 String
+  blush500 String
+  blush600 String
+
+  /// Highlight
+  gold String
+
+  updatedAt DateTime @updatedAt
+
+  @@map("theme")
+}
+
 /// Everything the Hero section renders. There is only ever one row; it is
 /// addressed by the fixed id `SINGLETON_ID` in lib/hero.ts.
 model HeroSection {

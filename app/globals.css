@@ -1,7 +1,13 @@
 @import "tailwindcss";
 
 @theme {
-  /* Brand palette: warm paper, deep moss green, muted blush */
+  /* Brand palette: warm paper, deep moss green, muted blush.
+   *
+   * These values still have to live here so Tailwind knows which colour
+   * utilities to generate, but they are only the starting point. The live
+   * palette is stored in the `theme` table and re-declared on `html:root` by
+   * the root layout, so editing colours in /admin/theme overrides everything
+   * below without a rebuild. Keep the two in sync via lib/theme.ts. */
   --color-canvas: #fbf9f6;
   --color-canvas-alt: #f3ede5;
   --color-canvas-deep: #ebe3d8;
