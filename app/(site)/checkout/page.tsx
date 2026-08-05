@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getCart } from "@/lib/cart-server";
+import { getCustomerSummary } from "@/lib/customer-auth";
+import { listAddresses } from "@/lib/customer-queries";
 import { isPaymongoConfigured } from "@/lib/paymongo";
 import { getShipping } from "@/lib/shipping-queries";
 import { getStore } from "@/lib/store";
@@ -17,11 +19,20 @@ export default async function CheckoutPage() {
    * client-side. Checkout has to be dynamic anyway, and this way the summary the
    * customer confirms is rendered from the same data the order is built from.
    */
-  const [cart, shipping, store] = await Promise.all([
+  const [cart, shipping, store, customer] = await Promise.all([
     getCart(),
     getShipping(),
     getStore(),
+    /**
+     * Read here rather than through the navbar's client store, because the form is
+     * server-rendered from it — prefilled contact details and a preselected saved
+     * address have to be in the first paint, not fetched afterwards. Checkout is
+     * dynamic anyway, so this costs nothing extra.
+     */
+    getCustomerSummary(),
   ]);
+
+  const savedAddresses = customer ? await listAddresses(customer.id) : [];
 
   return (
     <>
@@ -33,7 +44,9 @@ export default async function CheckoutPage() {
             Checkout
           </h1>
           <p className="mt-3 text-sm text-canvas/70">
-            No account needed. You can make one after ordering to save this address.
+            {customer
+              ? "Your saved address is filled in below. Change anything you need to."
+              : "No account needed. You can make one as you go and we will keep this address."}
           </p>
         </div>
       </header>
@@ -63,6 +76,8 @@ export default async function CheckoutPage() {
                  off the order number and the Facebook page. */
               hasPaymentQr={Boolean(store.manualPaymentQrUrl)}
               qrPhAvailable={isPaymongoConfigured()}
+              customer={customer}
+              savedAddresses={savedAddresses}
             />
           )}
         </div>

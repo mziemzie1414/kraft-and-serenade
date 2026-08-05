@@ -3,6 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import {
+  AccountDrawerLinks,
+  AccountMenu,
+} from "@/components/account/AccountMenu";
 import { useCart } from "@/components/cart/useCart";
 import { ChevronDownIcon, CloseIcon, MenuIcon, SearchIcon, BagIcon } from "@/components/ui/Icons";
 import { Logo } from "@/components/ui/Logo";
@@ -264,6 +268,11 @@ export function Navbar({
               <SearchIcon className="h-[1.15rem] w-[1.15rem]" />
             </button>
 
+            {/* Like the cart badge, this only knows the answer once hydrated —
+                the session is read from the browser so the landing page can stay
+                prerendered. */}
+            <AccountMenu linkColor={linkColor} />
+
             <Link
               href="/cart"
               aria-label={`Cart, ${cartCount} ${cartCount === 1 ? "item" : "items"}`}
@@ -367,6 +376,8 @@ export function Navbar({
               </li>
             );
           })}
+
+          <AccountDrawerLinks onNavigate={closeMobile} />
         </ul>
 
         <div className="container-page pb-6">

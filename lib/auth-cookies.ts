@@ -6,3 +6,10 @@
  * which does not run in that environment.
  */
 export const ADMIN_COOKIE = "admin_session";
+
+/**
+ * The storefront customer session. Separate from the admin cookie on purpose:
+ * signing in to the shop must never grant anything under `/admin`, and signing
+ * out of one should not sign you out of the other.
+ */
+export const CUSTOMER_COOKIE = "customer_session";

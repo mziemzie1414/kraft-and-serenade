@@ -78,10 +78,18 @@ app/
     products/[slug]/      product detail
     faqs/                 every question, not just the home page selection
     cart/                 static shell, contents priced client-side
-    checkout/             address, shipping fee, order creation
+    checkout/             address, shipping fee, order creation, sign-up panel
     orders/[token]/       confirmation, keyed on an unguessable token
+    account/              customer accounts
+      login/              sign in with either the email or the phone number
+      register/           create an account
+      (dashboard)/        behind the session guard
+        page.tsx          details and password, at /account
+        orders/           order history
+        addresses/        saved addresses
     newsletter-actions.ts the only Server Action on the public site
   api/cart/               the cart, priced from the database
+  api/account/me/         who is signed in, for the navbar
   api/psgc/               location lookups for the cascading address selects
   api/paymongo/webhook/   payment confirmation, signature-verified
   admin/                  force-dynamic, noindex
@@ -113,10 +121,11 @@ two can never disagree about what the shop contains.
 
 ## Data model
 
-`prisma/schema.prisma`. Twelve migrations so far: `hero_section`, `theme`,
+`prisma/schema.prisma`. Thirteen migrations so far: `hero_section`, `theme`,
 `catalog`, `best_seller_rank`, `occasion`, `why_choose_us_and_how_it_works`,
 `reviews_gallery_promo`, `faq_and_newsletter`,
-`store_settings_and_admin_auth`, `shipping`, `orders`, `paymongo`.
+`store_settings_and_admin_auth`, `shipping`, `orders`, `paymongo`,
+`customer_accounts`.
 
 ### Migrating through the Supabase pooler
 
@@ -136,6 +145,18 @@ migration without the interactive path:
 ```bash
 npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
 # save into prisma/migrations/<timestamp>_<name>/migration.sql, then:
+npx prisma migrate deploy
+```
+
+A third trap, on Windows only: **write that file without a byte order mark.**
+PowerShell's `>` and `Out-File -Encoding utf8` both add one, Postgres reads it as
+a stray token, and the whole script fails with `42601 syntax error at or near
+""` before a single statement runs. Prisma then records the migration as failed
+and refuses every later `deploy` with `P3009`. Recovering means confirming
+nothing was applied and then:
+
+```bash
+npx prisma migrate resolve --rolled-back <migration_name>
 npx prisma migrate deploy
 ```
 
@@ -173,6 +194,10 @@ the site.
 
 **Standalone.** `NewsletterSubscriber` belongs to no section. It is a capture
 table for the newsletter form: unique, lowercased email plus a timestamp.
+
+**Customers.** `Customer` has many `CustomerSession`, `CustomerAddress` and
+`Order`. The first two cascade on delete; `Order.customerId` is
+`onDelete: SetNull`, so closing an account does not destroy a sale.
 
 Child lists are replaced wholesale on save — delete all, then re-create from the
 submitted rows inside one transaction — so `position` is always a dense
@@ -223,14 +248,24 @@ with `THEME_DEFAULTS` in `lib/theme.ts`.
 Modules are split by whether they can touch the database, because the admin forms
 are Client Components and would otherwise pull Prisma into the browser bundle.
 
-| Pure (safe for client)     | Database                  |
-| -------------------------- | ------------------------- |
-| `lib/hero.ts`              | `lib/hero-queries.ts`     |
-| `lib/theme.ts`             | `lib/theme-queries.ts`    |
-| `lib/catalog.ts`           | `lib/catalog-queries.ts`  |
-| `lib/shipping.ts`          | `lib/shipping-queries.ts` |
-| `lib/cart.ts`              | `lib/cart-server.ts`      |
-| `lib/nav.ts`               |                           |
+| Pure (safe for client)     | Database                                        |
+| -------------------------- | ----------------------------------------------- |
+| `lib/hero.ts`              | `lib/hero-queries.ts`                           |
+| `lib/theme.ts`             | `lib/theme-queries.ts`                          |
+| `lib/catalog.ts`           | `lib/catalog-queries.ts`                        |
+| `lib/shipping.ts`          | `lib/shipping-queries.ts`                       |
+| `lib/cart.ts`              | `lib/cart-server.ts`                            |
+| `lib/customer.ts`          | `lib/customer-auth.ts`, `lib/customer-queries.ts` |
+| `lib/nav.ts`               | `lib/auth.ts`, `lib/password.ts`                |
+
+`lib/customer.ts` earns its place on the left: the checkout form and the sign-up
+panel validate an email, a phone number and a password before submitting, and the
+server validates the same way from the same module. `lib/auth-cookies.ts` is
+stricter still — no imports at all, so `proxy.ts` can use it.
+
+Query logic lives in the `*-queries.ts` modules rather than in `actions.ts` files.
+Actions validate and orchestrate; `saveOrderAddress` sits in
+`lib/customer-queries.ts` even though only checkout calls it, for that reason.
 
 The pure modules hold types, defaults, validation, and small helpers. If you add
 a **runtime value** an admin form needs, it belongs on the left.
@@ -258,7 +293,8 @@ Three layers, because no single one is enough:
 1. **`proxy.ts`** redirects anonymous browsers away from `/admin`. It only checks
    that the cookie *exists* — validating it would mean a database round trip on
    every request, and `proxy` cannot import Prisma. That is why `ADMIN_COOKIE`
-   lives in `lib/auth-cookies.ts`, a module with no imports.
+   lives in `lib/auth-cookies.ts`, a module with no imports. The same file guards
+   `/account`; see [Customer accounts](#customer-accounts).
 2. **`app/admin/(panel)/layout.tsx`** validates the session for real, so an
    expired or forged cookie cannot render the panel.
 3. **`requireAdmin()`** at the top of every admin Server Action. This is the one
@@ -272,6 +308,10 @@ Passwords use `scrypt` from `node:crypto`, stored as `salt:key` in hex, so there
 is no native dependency to build. Session cookies hold a random token and only
 its SHA-256 hash is stored, meaning a leaked database dump cannot be replayed as
 a login. Cookies are `httpOnly`, `sameSite=lax`, and `secure` in production.
+
+Those primitives live in `lib/password.ts` and are shared with the customer
+sign-in. `lib/auth.ts` re-exports `hashPassword` and `verifyPassword` so admin
+callers, and `prisma/seed.ts`, keep one import.
 
 Default credentials are `admin@admin` / `admin`, created by the seed on first run
 and never reset afterwards. **Change them.** Note the change form enforces a
@@ -324,6 +364,11 @@ Mutations call `revalidatePath`, which matters because `/` is prerendered:
 | Store settings | `revalidatePath("/", "layout")` — footer and page titles    |
 | Shipping       | nothing; only checkout reads it, and that is dynamic        |
 
+The customer-facing account actions follow the same rule: those pages read the
+session so they are dynamic already, and only the address mutations revalidate —
+`revalidatePath("/account/addresses")`, because otherwise the list on screen stays
+the one rendered before the save.
+
 ## Cart
 
 The cart is a cookie holding **only product ids and quantities**. Prices, names
@@ -375,7 +420,8 @@ putting a button inside that would add a second stop per tile.
 
 ## Checkout and orders
 
-Guests can order; no account is needed. `/checkout` reads the cart cookie
+Guests can order; no account is needed, and an account only ever adds convenience
+— see [Customer accounts](#customer-accounts). `/checkout` reads the cart cookie
 **server-side** — unlike the cart page, which prices client-side — because
 checkout is dynamic anyway and the summary the customer confirms should come from
 the same data the order is built from.
@@ -408,6 +454,128 @@ the store's QR code, the order number, and a link to the Facebook page — all f
 `/admin/store`. A QR code is optional: without one, manual payment still works off
 the order number and the Facebook page, so the store is never left with no way to
 take an order.
+
+## Customer accounts
+
+Accounts are optional and always were. All one adds is a saved address, an order
+history, and not retyping contact details — checkout works exactly as before
+without one, which is the constraint everything here is built around.
+
+`lib/customer-auth.ts` is a deliberate **mirror** of `lib/auth.ts` rather than a
+generalisation of it. Separate table, separate cookie, separate functions, so a
+customer session has no path by which it could satisfy an admin check. What the
+two do share is the crypto: `lib/password.ts` holds `hashPassword`,
+`verifyPassword`, `hashToken` and `generateSessionToken`, and both import it, so
+there is one copy of the scrypt parameters instead of two that can drift.
+
+Customer sessions last 60 days against the admin's 7. The point of signing in is
+to stop retyping an address, and being logged out weekly defeats that; the session
+grants nothing but the customer's own history.
+
+**Sign-in takes either the email or the phone number.** One field, and the `@`
+decides which column to search — that test is routing, not validation, and a
+mistyped value simply matches nothing. Both columns are therefore unique.
+
+The phone is stored twice. `Customer.phone` is what the customer typed, for
+display; `Customer.phoneKey` is normalised and is what sign-in looks at. Nobody
+remembers whether they wrote `0917 123 4567`, `+639171234567` or `9171234567`, so
+`normalizePhone` in `lib/customer.ts` strips punctuation, folds an international
+`63` prefix back to the local `0`, and restores a missing trunk `0` on a 10-digit
+mobile. Verified: all four of those shapes resolve to one key.
+
+### Three layers, again
+
+Same shape as the admin, for the same reasons:
+
+1. **`proxy.ts`** now guards both areas. It branches on the path prefix and
+   redirects to `/admin/login` or `/account/login` accordingly, still on cookie
+   *presence* only. `CUSTOMER_COOKIE` sits beside `ADMIN_COOKIE` in
+   `lib/auth-cookies.ts`, the module with no imports.
+2. **`app/(site)/account/(dashboard)/layout.tsx`** validates the session for real.
+   It is a route group so `/account/login` and `/account/register` fall outside it
+   — sharing that layout would redirect the login page to itself, which is why
+   `/admin/login` sits outside `(panel)` too.
+3. **`requireCustomer()`** at the top of every account Server Action.
+
+Beyond authentication there is authorisation, and it is the part that would be
+easy to get wrong. Every query is scoped by `customerId`, and writes use
+`updateMany`/`deleteMany` with the customer id **in the filter** rather than
+`update` by primary key. `update` would need a separate ownership read first, and
+forgetting that read is exactly how one customer edits another's address. Verified:
+an `addressId` submitted with somebody else's session matches zero rows and the
+row is left untouched.
+
+### The navbar knows without making the site dynamic
+
+`/` is prerendered, and a layout that reads cookies would make every page render
+per-request. So the site layout does **not** read the session. `AccountMenu` asks
+`/api/account/me` from the browser instead, backed by
+`components/account/useAccount.ts` — a `useSyncExternalStore`, the same pattern
+and the same justification as the cart.
+
+Two consequences worth knowing:
+
+- The icon renders nothing until the first lookup lands. Showing "Sign in" while
+  still loading would flash the wrong thing at someone already signed in, so
+  `status` distinguishes "loading" from "signed out" and the space is held either
+  way.
+- **No account action redirects from the server.** They set the cookie and return.
+  The store caches who is signed in, so the browser has to call `refreshAccount()`
+  and *then* navigate; a `redirect()` would land on the next page with the header
+  still offering to sign you in. Every form here does those two in that order.
+
+`getServerSnapshot` returns a fixed constant rather than the live module state.
+Module state is shared across requests on the server, so returning it could render
+one visitor another's name.
+
+### Checkout
+
+Signed in, `/checkout` reads the session **server-side** and renders from it, so
+prefilled contact details and the preselected default address are in the first
+paint rather than fetched afterwards. Checkout is dynamic anyway.
+
+`placeOrder` takes `customerId` from the session cookie and never from the form. A
+hidden field would let anyone write an order into somebody else's history.
+
+The saved-address select fills the address fields and leaves contact alone.
+Editing any address field by hand switches the select back to "Somewhere else…",
+so what is shown always matches what will be submitted.
+
+With "Keep this address on my account" ticked, `saveOrderAddress` files it
+afterwards — after the order row exists and in its own `try`, so a failure there
+cannot cost an order the customer has already confirmed. It skips an address
+already on file, keyed on street, barangay and city; without that, ordering to the
+same place three times would leave three identical entries in the picker. The first
+address saved becomes the default, because there is nothing else to preselect.
+
+### The sign-up panel
+
+Offered mid-checkout, prefilled from the email and phone number already typed.
+Three things make it work:
+
+- **`signUp` does not redirect.** A navigation would throw away the address just
+  filled in.
+- **It is a native `<dialog>` opened with `showModal()`**, which brings the focus
+  trap, Escape handling, inert background and backdrop for free.
+- **It is rendered outside the checkout `<form>`.** `showModal` promotes the
+  element in the top layer but not in the DOM, and a form inside a form is invalid
+  HTML that browsers resolve by dropping the inner one.
+
+Contact inputs on the checkout form are controlled rather than left to the DOM, so
+the dialog follows a later correction instead of snapshotting whatever was there
+when it opened.
+
+### A guest order stays a guest order
+
+Signing up later with the same email does **not** claim past guest orders. Nothing
+verifies an email address here, so back-linking on one would let anybody read a
+stranger's name, phone number and home address by registering with their email.
+The order placed *during* the checkout sign-up is linked, which covers the case
+people actually care about.
+
+`CustomerAddress` holds no recipient name or phone, deliberately. `Order` carries
+one set of contact details and has nowhere to put a second, so storing a recipient
+would be a field that looks meaningful and reaches nothing.
 
 ## Payments
 
@@ -543,8 +711,26 @@ small print are in the component. Its form does write to the database.
 
 - **The default admin password is `admin`.** Fine for first sign-in, not for a
   deployment. There is no prompt forcing a change yet.
-- **No rate limiting on sign-in.** Passwords are hashed with scrypt, which is
-  slow by design, but nothing throttles repeated attempts.
+- **No rate limiting on sign-in, admin or customer.** Passwords are hashed with
+  scrypt, which is slow by design, but nothing throttles repeated attempts. The
+  customer sign-in is worse off than the admin one: it is linked from the navbar
+  on every page, and `/account/register` is an unauthenticated public endpoint that
+  writes to the database. Throttle both before this is live.
+- **Nothing verifies a customer's email or phone number.** No confirmation link,
+  no SMS code. This is why signing up does not claim matching guest orders — see
+  [Customer accounts](#customer-accounts) — and it is the first thing to fix if
+  accounts are ever to carry more than a saved address.
+- **No password reset.** A customer who forgets theirs has no way back in, because
+  a reset needs email delivery and nothing here sends email. They can still order
+  as a guest, so this locks them out of their history rather than the shop.
+- **Sign-up confirms whether an email is already registered.** The alternative is
+  telling someone their sign-up worked when it did not, which is worse. Sign-*in*
+  gives one message for a missing account and a wrong password alike, so that path
+  does not leak.
+- **Customers have no admin screen.** No way to see the list, reset a password, or
+  close an account from `/admin`. Read the rows with `npx prisma studio`.
+- **Closing an account is not offered.** The cascades are in place and verified,
+  but nothing in the UI calls them.
 - **The flat shipping rate is a placeholder.** Nothing in the original site
   charged for delivery, so ₱150 is a starting figure, not migrated content. No
   location rates are seeded, so every address falls to the flat rate until real
@@ -590,8 +776,19 @@ small print are in the component. Its form does write to the database.
   live in. The mismatch is visible in the address on the order, but nothing
   cross-checks it.
 - **The cart's and checkout's interactive parts are not browser-tested.** Pricing,
-  validation and tamper-resistance are covered server-side, but the steppers,
-  badge, hydration and cascading address selects have been reasoned about rather
-  than clicked.
+  validation, tamper-resistance and both render branches of checkout are covered
+  server-side, but the steppers, badge, hydration, cascading address selects, the
+  account dropdown and the sign-up dialog have been reasoned about rather than
+  clicked. The dialog in particular relies on native `showModal()` behaviour that
+  is worth confirming with a keyboard and a screen reader.
+- **Placing an order was not driven end to end through the browser.** The
+  address-saving and de-duplication path is verified directly, and the render of
+  both signed-in and guest checkout is verified over HTTP, but no order has been
+  submitted through the real Server Action while signed in. Server Action ids are
+  not addressable from a plain HTTP client, so this needs a browser or a real
+  end-to-end runner.
+- **A saved address cannot name a different recipient.** Bouquets are usually sent
+  to someone else, but `Order` carries one set of contact details, so that needs a
+  recipient on the order before it can mean anything on the address.
 - **Two categories have no products.** Graduation and Money Bouquets, because the
   original hard-coded data had none. They render an empty state.

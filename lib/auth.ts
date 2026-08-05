@@ -1,64 +1,30 @@
-import {
-  createHash,
-  randomBytes,
-  scrypt as scryptCallback,
-  timingSafeEqual,
-} from "node:crypto";
-import { promisify } from "node:util";
 import { cookies } from "next/headers";
 import { ADMIN_COOKIE } from "./auth-cookies";
+import {
+  generateSessionToken,
+  hashPassword,
+  hashToken,
+  verifyPassword,
+} from "./password";
 import { prisma } from "./prisma";
 
 export { ADMIN_COOKIE };
-
-const scrypt = promisify(scryptCallback) as (
-  password: string,
-  salt: string,
-  keylen: number,
-) => Promise<Buffer>;
-
-const KEY_LENGTH = 64;
+/**
+ * Re-exported so admin callers — and `prisma/seed.ts` — keep one import for
+ * everything to do with signing in. The implementations live in
+ * `lib/password.ts`, shared with the customer sign-in.
+ */
+export { hashPassword, verifyPassword };
 
 /** How long a signed-in admin browser stays valid. */
 const SESSION_DAYS = 7;
-
-/**
- * Hashes a password with scrypt, which is in Node's standard library — no native
- * dependency to build. Stored as `salt:key`, both hex.
- */
-export async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16).toString("hex");
-  const key = await scrypt(password, salt, KEY_LENGTH);
-
-  return `${salt}:${key.toString("hex")}`;
-}
-
-/** Constant-time comparison, so a wrong password cannot be timed character by character. */
-export async function verifyPassword(
-  password: string,
-  stored: string,
-): Promise<boolean> {
-  const [salt, keyHex] = stored.split(":");
-
-  if (!salt || !keyHex) return false;
-
-  const expected = Buffer.from(keyHex, "hex");
-  const actual = await scrypt(password, salt, expected.length);
-
-  return expected.length === actual.length && timingSafeEqual(expected, actual);
-}
-
-/** Only the hash of a session token is stored, so the table cannot be replayed. */
-function hashToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
-}
 
 /**
  * Signs an admin in: creates a session row and sets the cookie.
  * Must be called from a Server Action or Route Handler.
  */
 export async function createAdminSession(adminId: string): Promise<void> {
-  const token = randomBytes(32).toString("hex");
+  const token = generateSessionToken();
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
 
   await prisma.adminSession.create({

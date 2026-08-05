@@ -4,6 +4,9 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { CART_COOKIE } from "@/lib/cart";
 import { getCart } from "@/lib/cart-server";
+import { looksLikeEmail, looksLikePhone } from "@/lib/customer";
+import { getCustomer } from "@/lib/customer-auth";
+import { saveOrderAddress } from "@/lib/customer-queries";
 import { generateAccessToken, generateOrderNumber } from "@/lib/orders";
 import { createQrPhPayment, isPaymongoConfigured } from "@/lib/paymongo";
 import { prisma } from "@/lib/prisma";
@@ -40,18 +43,6 @@ class FieldError extends Error {
   }
 }
 
-/** Loose on purpose — the real test of an address is whether the courier finds it. */
-function looksLikeEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value) && value.length <= 254;
-}
-
-/** Accepts the shapes Filipino numbers are actually written in. */
-function looksLikePhone(value: string): boolean {
-  const digits = value.replace(/[^\d]/g, "");
-
-  return digits.length >= 7 && digits.length <= 15;
-}
-
 export async function placeOrder(
   _prevState: CheckoutState,
   formData: FormData,
@@ -69,6 +60,15 @@ export async function placeOrder(
     if (cart.items.length === 0) {
       throw new FieldError("Your cart is empty.", "");
     }
+
+    /**
+     * Read from the session cookie, never from the form. A hidden `customerId`
+     * would let anybody attach their order to somebody else's account — and read
+     * that account's other orders is not the risk, but writing into its history is.
+     *
+     * `null` here is the normal case: guests can order, and always could.
+     */
+    const customer = await getCustomer();
 
     const customerName = required(formData, "customerName", "Name");
     const customerEmail = required(formData, "customerEmail", "Email");
@@ -123,6 +123,7 @@ export async function placeOrder(
       data: {
         orderNumber,
         accessToken: token,
+        customerId: customer?.id ?? null,
         customerName,
         customerEmail: customerEmail.toLowerCase(),
         customerPhone,
@@ -150,6 +151,22 @@ export async function placeOrder(
 
     // The order now owns the contents, so the cart is done with.
     (await cookies()).delete(CART_COOKIE);
+
+    /**
+     * Keep the address, if there is an account to keep it on and the customer
+     * asked. Done after the order rather than before, so a failure here cannot
+     * cost them the order — which is why it is in its own try.
+     */
+    if (customer && text(formData, "saveAddress") === "on") {
+      try {
+        await saveOrderAddress(customer.id, {
+          ...address,
+          deliveryNotes: text(formData, "deliveryNotes") || null,
+        });
+      } catch (addressError) {
+        console.error("Could not save the delivery address", addressError);
+      }
+    }
 
     /**
      * The QR code is generated after the order exists, not before, so a PayMongo
@@ -194,3 +211,5 @@ export async function placeOrder(
   // Outside the try: redirect works by throwing.
   redirect(`/orders/${token}`);
 }
+
+

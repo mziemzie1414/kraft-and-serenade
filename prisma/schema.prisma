@@ -453,6 +453,19 @@ model Order {
   /// is keyed on this instead.
   accessToken String @unique
 
+  /// Set when the order was placed while signed in, so it shows up in the
+  /// customer's history. Nulled rather than cascading if the account goes away,
+  /// because the order is still a record of a sale.
+  ///
+  /// A guest order stays a guest order: signing up later with the same email does
+  /// **not** claim it. Nothing verifies an email address here, so back-linking on
+  /// one would let anybody read a stranger's name, phone number and home address
+  /// by registering with their email.
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  /// Copied onto the order rather than read through the relation, so the details
+  /// the courier was given are what the order keeps even if the account is edited.
   customerName  String
   customerEmail String
   customerPhone String
@@ -503,7 +516,104 @@ model Order {
 
   @@index([status, createdAt])
   @@index([createdAt])
+  @@index([customerId, createdAt])
   @@map("order")
+}
+
+/// Someone who has made an account on the storefront.
+///
+/// Accounts are optional — guests can order without one. All an account adds is a
+/// saved address, an order history, and not having to retype contact details.
+///
+/// Sign-in accepts **either** the email or the phone number, so both have to be
+/// unique. The phone is stored twice: once as the customer typed it, for display,
+/// and once normalised to digits, which is the column sign-in looks at. See
+/// `normalizePhone` in lib/customer.ts for why.
+model Customer {
+  id String @id @default(uuid())
+
+  name String
+  /// Stored lowercased and trimmed.
+  email String @unique
+
+  /// As the customer typed it.
+  phone String
+  /// Normalised for lookup, e.g. `09171234567`. Never shown.
+  phoneKey String @unique
+
+  /// scrypt, stored as `salt:derivedKey` in hex. See lib/password.ts.
+  passwordHash String
+
+  sessions  CustomerSession[]
+  addresses CustomerAddress[]
+  orders    Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("customer")
+}
+
+/// A signed-in customer browser.
+///
+/// Same shape as `AdminSession` and for the same reason: the cookie holds a
+/// random token and only its SHA-256 hash is stored, so a leaked database dump
+/// cannot be replayed as a login.
+model CustomerSession {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  expiresAt DateTime
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+  @@index([customerId])
+  @@map("customer_session")
+}
+
+/// A delivery address the customer has kept, so checkout can fill itself in.
+///
+/// The same PSGC code-and-name pairs as `Order`, for the same reason: the codes
+/// resolve the shipping fee and the names keep the address readable without
+/// calling the API again.
+model CustomerAddress {
+  id String @id @default(uuid())
+
+  /// What the customer calls it, e.g. "Home". Optional — the city stands in.
+  label String?
+
+  /// Deliberately just an address. There is no recipient name or phone here,
+  /// because `Order` has nowhere to put one: it carries a single set of contact
+  /// details. Storing a recipient the order cannot express would be a field that
+  /// looks meaningful and reaches nothing. Sending to someone else is a recipient
+  /// on `Order` first — see ARCHITECTURE.
+  regionCode   String
+  regionName   String
+  provinceCode String
+  provinceName String
+  cityCode     String
+  cityName     String
+  barangay     String
+  street       String
+  postalCode   String
+
+  deliveryNotes String?
+
+  /// The one checkout preselects. A flag on this table rather than a pointer on
+  /// `Customer`, so moving the default is one update here and no second write.
+  isDefault Boolean @default(false)
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId, isDefault])
+  @@map("customer_address")
 }
 
 /// Every webhook PayMongo has delivered, keyed on their event id.
