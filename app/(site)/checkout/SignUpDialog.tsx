@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useEffect, useRef } from "react";
-import { ACCOUNT_IDLE, signUp } from "@/app/(site)/account/actions";
+import { signUp } from "@/app/(site)/account/actions";
+import { ACCOUNT_IDLE } from "@/app/(site)/account/form-state";
 import { refreshAccount } from "@/components/account/useAccount";
 import { Field, FormMessage, inputClass } from "@/components/ui/form";
 import { PASSWORD_MIN_LENGTH } from "@/lib/customer";

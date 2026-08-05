@@ -14,16 +14,12 @@ import {
 } from "@/lib/customer-auth";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
-
-/** What every account form gets back. `done` covers both "saved" and "signed up". */
-export type AccountState = {
-  status: "idle" | "error" | "done";
-  message?: string;
-  /** Which field to point at, when it is one field's fault. */
-  field?: string;
-};
-
-export const ACCOUNT_IDLE: AccountState = { status: "idle" };
+/**
+ * The state shape lives in its own module because everything a `"use server"`
+ * file exports becomes a callable server reference, and only async functions can
+ * be one. A type is erased so it could stay here; `ACCOUNT_IDLE` could not.
+ */
+import type { AccountState } from "./form-state";
 
 function text(formData: FormData, name: string): string {
   const value = formData.get(name);

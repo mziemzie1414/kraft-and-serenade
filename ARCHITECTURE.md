@@ -335,6 +335,15 @@ the sidebar and the index page.
 
 Two patterns to copy rather than reinvent:
 
+**A `"use server"` file may only export async functions.** Everything it exports
+becomes a callable server reference, and an object cannot be one. Exporting an
+`IDLE` constant beside the actions fails at runtime with *a "use server" file can
+only export async functions, found object* — and because the navbar imports
+`signOut`, one bad export in the account actions took down every storefront page,
+not just the one being worked on. `export type` is fine, since types are erased.
+That is why the idle state lives in `components/admin/form-state.ts` and
+`app/(site)/account/form-state.ts` rather than next to the actions.
+
 **Forms remount after saving.** Each form takes a `version` prop, usually
 `updatedAt.toISOString()`, used as its `key`. React does not update
 `defaultValue` on an already-mounted input, so without this a freshly uploaded

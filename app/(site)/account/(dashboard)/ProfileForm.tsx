@@ -3,7 +3,8 @@
 import { useActionState } from "react";
 import { PASSWORD_MIN_LENGTH } from "@/lib/customer";
 import { Field, FormMessage, inputClass } from "@/components/ui/form";
-import { ACCOUNT_IDLE, changePassword, updateProfile } from "../actions";
+import { changePassword, updateProfile } from "../actions";
+import { ACCOUNT_IDLE } from "../form-state";
 
 /**
  * Two separate forms rather than one.

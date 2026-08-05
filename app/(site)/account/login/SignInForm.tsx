@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
 import { refreshAccount } from "@/components/account/useAccount";
 import { Field, FormMessage, PrimaryButton, inputClass } from "@/components/ui/form";
-import { ACCOUNT_IDLE, signIn } from "../actions";
+import { signIn } from "../actions";
+import { ACCOUNT_IDLE } from "../form-state";
 
 export function SignInForm({ next }: { next: string }) {
   const [state, formAction, pending] = useActionState(signIn, ACCOUNT_IDLE);

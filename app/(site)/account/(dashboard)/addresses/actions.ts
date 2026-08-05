@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireCustomer } from "@/lib/customer-auth";
 import { prisma } from "@/lib/prisma";
-import type { AccountState } from "../../actions";
+import type { AccountState } from "../../form-state";
 
 function text(formData: FormData, name: string): string {
   const value = formData.get(name);

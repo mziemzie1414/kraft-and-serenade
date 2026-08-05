@@ -5,7 +5,8 @@ import { useActionState, useEffect } from "react";
 import { refreshAccount } from "@/components/account/useAccount";
 import { PASSWORD_MIN_LENGTH } from "@/lib/customer";
 import { Field, FormMessage, PrimaryButton, inputClass } from "@/components/ui/form";
-import { ACCOUNT_IDLE, signUp } from "../actions";
+import { signUp } from "../actions";
+import { ACCOUNT_IDLE } from "../form-state";
 
 export function SignUpForm({ next }: { next: string }) {
   const [state, formAction, pending] = useActionState(signUp, ACCOUNT_IDLE);

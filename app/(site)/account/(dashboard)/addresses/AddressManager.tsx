@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/LocationPicker";
 import { Field, FormMessage, inputClass, labelClass } from "@/components/ui/form";
 import { formatAddressLine, type SavedAddress } from "@/lib/customer";
-import { ACCOUNT_IDLE } from "../../actions";
+import { ACCOUNT_IDLE } from "../../form-state";
 import { deleteAddress, saveAddress, setDefaultAddress } from "./actions";
 
 /**
