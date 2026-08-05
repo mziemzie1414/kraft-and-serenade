@@ -46,10 +46,12 @@ export function CheckoutForm({
   cart,
   shipping,
   hasPaymentQr,
+  qrPhAvailable,
 }: {
   cart: HydratedCart;
   shipping: ShippingContent;
   hasPaymentQr: boolean;
+  qrPhAvailable: boolean;
 }) {
   const [state, formAction, pending] = useActionState(placeOrder, IDLE);
   const [location, setLocation] = useState<LocationValue>(EMPTY_LOCATION);
@@ -226,21 +228,24 @@ export function CheckoutForm({
               </span>
             </label>
 
-            {/* Enabled once the PayMongo flow is wired up. */}
-            <label className="flex gap-3 rounded-xl border border-canvas-deep p-4 opacity-50">
+            <label
+              className={`flex gap-3 rounded-xl border border-canvas-deep p-4 transition-colors ${
+                qrPhAvailable ? "cursor-pointer hover:border-moss-400" : "opacity-50"
+              }`}
+            >
               <input
                 type="radio"
                 name="paymentMethod"
                 value="PAYMONGO_QRPH"
-                disabled
+                disabled={!qrPhAvailable}
                 className="mt-1 h-4 w-4 accent-moss-700"
               />
               <span>
-                <span className="block text-sm font-semibold text-ink">
-                  PayMongo QR Ph
-                </span>
+                <span className="block text-sm font-semibold text-ink">QR Ph</span>
                 <span className="mt-0.5 block text-xs text-ink-soft">
-                  Coming shortly — pay from any QR Ph banking or e-wallet app.
+                  {qrPhAvailable
+                    ? "Pay straight away from any QR Ph banking or e-wallet app."
+                    : "Not available — card payments are not configured."}
                 </span>
               </span>
             </label>

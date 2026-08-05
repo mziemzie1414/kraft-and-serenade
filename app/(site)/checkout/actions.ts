@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { CART_COOKIE } from "@/lib/cart";
 import { getCart } from "@/lib/cart-server";
 import { generateAccessToken, generateOrderNumber } from "@/lib/orders";
+import { createQrPhPayment, isPaymongoConfigured } from "@/lib/paymongo";
 import { prisma } from "@/lib/prisma";
 import { getShipping } from "@/lib/shipping-queries";
 import { resolveShippingFee } from "@/lib/shipping";
@@ -108,10 +109,17 @@ export async function placeOrder(
     const shipping = await getShipping();
     const resolved = resolveShippingFee(shipping, { regionCode, cityCode });
 
+    if (method === "PAYMONGO_QRPH" && !isPaymongoConfigured()) {
+      throw new FieldError(
+        "Card and QR Ph payment is not available right now.",
+        "paymentMethod",
+      );
+    }
+
     const orderNumber = await generateOrderNumber();
     token = generateAccessToken();
 
-    await prisma.order.create({
+    const order = await prisma.order.create({
       data: {
         orderNumber,
         accessToken: token,
@@ -142,6 +150,34 @@ export async function placeOrder(
 
     // The order now owns the contents, so the cart is done with.
     (await cookies()).delete(CART_COOKIE);
+
+    /**
+     * The QR code is generated after the order exists, not before, so a PayMongo
+     * outage cannot lose an order that the customer has already confirmed. If this
+     * fails they land on the confirmation page and can generate the code there.
+     */
+    if (method === "PAYMONGO_QRPH") {
+      try {
+        const payment = await createQrPhPayment({
+          amountPesos: order.total,
+          description: order.orderNumber,
+          // Keyed on the order, so a retry returns the same intent.
+          idempotencyKey: `order-${order.id}`,
+          metadata: { orderNumber: order.orderNumber, orderId: order.id },
+        });
+
+        await prisma.order.update({
+          where: { id: order.id },
+          data: {
+            paymongoPaymentIntentId: payment.paymentIntentId,
+            qrCodeImage: payment.qrImage,
+            qrExpiresAt: payment.expiresAt,
+          },
+        });
+      } catch (paymentError) {
+        console.error("Could not create the QR Ph payment", paymentError);
+      }
+    }
   } catch (error) {
     if (error instanceof FieldError) {
       return { status: "error", message: error.message, field: error.field };

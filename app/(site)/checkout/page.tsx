@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getCart } from "@/lib/cart-server";
+import { isPaymongoConfigured } from "@/lib/paymongo";
 import { getShipping } from "@/lib/shipping-queries";
 import { getStore } from "@/lib/store";
 import { CheckoutForm } from "./CheckoutForm";
@@ -61,6 +62,7 @@ export default async function CheckoutPage() {
               /* The QR is a convenience. Without one, manual payment still works
                  off the order number and the Facebook page. */
               hasPaymentQr={Boolean(store.manualPaymentQrUrl)}
+              qrPhAvailable={isPaymongoConfigured()}
             />
           )}
         </div>

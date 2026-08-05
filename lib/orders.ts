@@ -55,6 +55,30 @@ export function generateAccessToken(): string {
   return randomBytes(24).toString("hex");
 }
 
+/**
+ * Loads an order from its confirmation token, with whether its payment code has
+ * lapsed already worked out.
+ *
+ * The expiry check lives here rather than in the page because reading the clock
+ * during render is impure — and because how fresh a payment code is belongs with
+ * the data, not the markup.
+ */
+export async function getOrderByToken(token: string) {
+  const order = await prisma.order.findUnique({
+    where: { accessToken: token },
+    include: { items: true },
+  });
+
+  if (!order) return null;
+
+  return {
+    ...order,
+    qrExpired: order.qrExpiresAt
+      ? order.qrExpiresAt.getTime() < Date.now()
+      : false,
+  };
+}
+
 export const ORDER_STATUS_LABELS = {
   PENDING_PAYMENT: "Awaiting payment",
   PAID: "Paid",

@@ -42,6 +42,13 @@ Prisma 7 notes worth knowing before you touch it:
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`| Browser-safe key                            |
 | `SUPABASE_SECRET_KEY`                 | Server only. Bypasses row level security    |
 | `SUPABASE_STORAGE_BUCKET`             | Defaults to `site-images`                   |
+| `PAYMONGO_SECRET_KEY`                 | Server only. Payment Intents                |
+| `PAYMONGO_PUBLIC_KEY`                 | Payment Methods and attach                  |
+| `PAYMONGO_WEBHOOK_SECRET`             | Endpoint secret, `whsk_...`                 |
+
+PayMongo keys are mode-scoped. `sk_test_`/`pk_test_` never touch real money;
+`sk_live_`/`pk_live_` do. Webhook endpoints are scoped the same way, so register a
+separate one per environment.
 
 Two connection strings because Supabase's transaction pooler cannot run DDL or
 hold advisory locks, so migrations and seeding go through the session pooler
@@ -76,6 +83,7 @@ app/
     newsletter-actions.ts the only Server Action on the public site
   api/cart/               the cart, priced from the database
   api/psgc/               location lookups for the cascading address selects
+  api/paymongo/webhook/   payment confirmation, signature-verified
   admin/                  force-dynamic, noindex
     login/                sign-in, outside the guarded route group
     (panel)/              everything below is behind the session guard
@@ -105,10 +113,39 @@ two can never disagree about what the shop contains.
 
 ## Data model
 
-`prisma/schema.prisma`. Eleven migrations so far: `hero_section`, `theme`,
+`prisma/schema.prisma`. Twelve migrations so far: `hero_section`, `theme`,
 `catalog`, `best_seller_rank`, `occasion`, `why_choose_us_and_how_it_works`,
 `reviews_gallery_promo`, `faq_and_newsletter`,
-`store_settings_and_admin_auth`, `shipping`, `orders`.
+`store_settings_and_admin_auth`, `shipping`, `orders`, `paymongo`.
+
+### Migrating through the Supabase pooler
+
+Two things will bite you, and both did:
+
+- **`migrate dev` prompts** whenever a change could fail against existing data,
+  such as adding a unique constraint. Without a TTY it hangs forever rather than
+  erroring. Piping `y` does not help.
+- **Advisory locks do not survive a pooler.** They are session-scoped, and
+  Supavisor can hand Prisma a different backend, so it ends up waiting on its own
+  lock and reports `P1002`. A killed run leaves the lock behind and every later
+  attempt fails the same way.
+
+When that happens, set `PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1` and generate the
+migration without the interactive path:
+
+```bash
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
+# save into prisma/migrations/<timestamp>_<name>/migration.sql, then:
+npx prisma migrate deploy
+```
+
+If a lock is stuck, terminate the holder:
+
+```sql
+select a.pid from pg_locks l join pg_stat_activity a on a.pid = l.pid
+ where l.locktype = 'advisory' and a.pid <> pg_backend_pid();
+select pg_terminate_backend(<pid>);
+```
 
 **Singletons.** Each landing-page section holds exactly one row, addressed by a
 fixed id. A known id keeps reads and the admin upsert trivial, with no "which row
@@ -372,6 +409,64 @@ the store's QR code, the order number, and a link to the Facebook page — all f
 the order number and the Facebook page, so the store is never left with no way to
 take an order.
 
+## Payments
+
+Two methods, both recorded on `Order.paymentMethod`.
+
+**Manual.** The confirmation page shows the store's QR code (if uploaded), the
+order number, and a link to the Facebook page. Nothing automated — an admin
+confirms it. Works with no QR code at all, so the store is never left unable to
+take an order.
+
+**PayMongo QR Ph.** `lib/paymongo.ts` follows the documented Payment Intent flow:
+create an intent with `qrph` allowed (secret key), create a `qrph` payment method
+(public key), attach it (public key), then read the code from
+`next_action.code.image_url`. It comes back as a base64 data URL, which is stored
+on the order so the page does not re-call the API on every view. Codes are
+single-use, carry the exact amount, and expire after 30 minutes.
+
+The QR is created **after** the order row exists, so a PayMongo outage cannot lose
+an order the customer already confirmed. If it fails they land on the confirmation
+page and can generate the code from there.
+
+### The webhook
+
+`app/api/paymongo/webhook/route.ts`, in this order:
+
+1. Read the **raw** body. Parsing first changes the bytes and breaks the signature.
+2. Verify `Paymongo-Signature`. A bad signature gets a 401 and is not acknowledged.
+3. Insert the event id into `WebhookEvent`. PayMongo retries up to 12 times, so a
+   unique-key violation here means "already handled" — that is what stops an order
+   being marked paid twice.
+4. Only then act.
+
+Everything past step 2 returns 2xx, including unrecognised event types. A 4xx or
+5xx makes PayMongo retry, which would just pile up the queue.
+
+Two guards worth knowing about, both verified:
+
+- **The amount is checked.** An event claiming a smaller amount than the order
+  total is acknowledged and ignored rather than marking it paid.
+- **`livemode` must match the key mode.** In practice a mismatched event fails the
+  signature check first, because test keys are verified against the `te` slot and
+  live keys against `li` — so this is a second line rather than the only one.
+
+PayMongo's guidance is to acknowledge immediately and process in a worker. There is
+no queue here and the work is one indexed update, so it runs inline, well inside
+the 30-second window. Revisit if that grows.
+
+`verifyWebhookSignature` accepts both the documented "HMAC of the raw body" form
+and the `t=<ts>,te=<sig>,li=<sig>` form where the signed value is `<ts>.<body>`,
+because PayMongo's own docs describe the first while the header has historically
+been the second. Every branch still requires a real HMAC with the endpoint secret,
+so accepting both widens nothing.
+
+**The webhook cannot reach a local machine.** Register the endpoint in the PayMongo
+dashboard against a public HTTPS URL, or tunnel with something like ngrok. That is
+why the confirmation page also has an "I have paid — check now" button, which polls
+the intent directly — the documented alternative to webhooks, and the only way to
+complete a payment locally.
+
 ## Addresses and shipping
 
 Addresses are built from the Philippine Standard Geographic Code via
@@ -476,10 +571,18 @@ small print are in the component. Its form does write to the database.
   mean a table keyed on `Product` and deriving those two figures from it.
 - **The gallery has no real Instagram link.** `GallerySection.ctaHref` is seeded
   as `#gallery`; set the actual profile URL in `/admin/gallery`.
-- **PayMongo is not wired up.** The option is shown at checkout but disabled, and
-  `PaymentMethod.PAYMONGO_QRPH` is unused. Manual payment is the only live method.
-- **Nothing marks an order as paid.** `OrderStatus` has the states but there is no
-  admin screen to move an order through them yet.
+- **The webhook endpoint is not registered.** Nothing has been created in the
+  PayMongo dashboard yet, so in production payments would only be confirmed by the
+  "check now" button. Register it before going live.
+- **Manual payments are confirmed by nobody.** A manual order sits at
+  `PENDING_PAYMENT` forever; there is no admin screen to mark it paid yet.
+- **`qrph.expired` is acknowledged but ignored.** An expired code leaves the order
+  awaiting payment, which is recoverable from the page, but nothing reacts to the
+  event itself.
+- **Only the happy path was exercised against PayMongo.** A real QR was generated
+  with test keys, but no code has actually been scanned and paid, so the
+  `payment.paid` handling was proven with synthetic signed events rather than a
+  genuine delivery. Confirm the signature format against a real one.
 - **No email is sent.** The confirmation page is the only receipt, so the customer
   has to keep the link. Worth adding before this is used in earnest.
 - **The delivery city is taken on trust.** The fee is resolved from the submitted

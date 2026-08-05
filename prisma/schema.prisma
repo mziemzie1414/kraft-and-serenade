@@ -483,6 +483,19 @@ model Order {
   paymentMethod PaymentMethod
   status        OrderStatus   @default(PENDING_PAYMENT)
 
+  /// PayMongo Payment Intent, when paying by QR Ph. Unique so a webhook can find
+  /// exactly one order, and so a retry cannot attach a second intent.
+  paymongoPaymentIntentId String? @unique
+  /// The payment that settled the intent, recorded from the webhook.
+  paymongoPaymentId String?
+
+  /// Base64 data URL from PayMongo, stored so the page does not have to call the
+  /// API again on every view. Codes are single-use and short-lived.
+  qrCodeImage String?
+  qrExpiresAt DateTime?
+
+  paidAt DateTime?
+
   items OrderItem[]
 
   createdAt DateTime @default(now())
@@ -491,6 +504,21 @@ model Order {
   @@index([status, createdAt])
   @@index([createdAt])
   @@map("order")
+}
+
+/// Every webhook PayMongo has delivered, keyed on their event id.
+///
+/// PayMongo retries a delivery up to 12 times, so the same event will arrive more
+/// than once. Inserting the id first and treating a unique violation as "already
+/// handled" is what stops an order being marked paid twice.
+model WebhookEvent {
+  /// PayMongo's event id, e.g. `evt_...`.
+  id   String @id
+  type String
+
+  receivedAt DateTime @default(now())
+
+  @@map("webhook_event")
 }
 
 /// One line of an order, with the product details copied in.

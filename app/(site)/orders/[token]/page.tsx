@@ -4,10 +4,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CheckIcon } from "@/components/ui/Icons";
 import { formatPrice } from "@/lib/data";
-import { ORDER_STATUS_LABELS } from "@/lib/orders";
-import { prisma } from "@/lib/prisma";
+import { ORDER_STATUS_LABELS, getOrderByToken } from "@/lib/orders";
 import { getStore } from "@/lib/store";
 import { ClearCart } from "./ClearCart";
+import { QrPhPanel } from "./QrPhPanel";
 
 export const metadata: Metadata = {
   title: "Your order",
@@ -23,10 +23,7 @@ export default async function OrderPage({ params }: PageProps<"/orders/[token]">
    * short so it can be read aloud, which also makes it guessable — and this page
    * shows a home address.
    */
-  const order = await prisma.order.findUnique({
-    where: { accessToken: token },
-    include: { items: true },
-  });
+  const order = await getOrderByToken(token);
 
   if (!order) notFound();
 
@@ -73,7 +70,28 @@ export default async function OrderPage({ params }: PageProps<"/orders/[token]">
               </p>
             </div>
 
-            {isManual ? (
+            {order.status === "PAID" ? (
+              <div className="rounded-2xl border border-moss-100 bg-canvas p-6">
+                <h2 className="flex items-center gap-2 font-display text-lg font-medium text-moss-700">
+                  <CheckIcon className="h-4 w-4" />
+                  Payment received
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+                  Nothing more to do. We will start building your bouquet and let you
+                  know when it is on its way.
+                </p>
+              </div>
+            ) : order.paymentMethod === "PAYMONGO_QRPH" ? (
+              <QrPhPanel
+                token={order.accessToken}
+                total={order.total}
+                qrCodeImage={order.qrCodeImage}
+                expiresAt={order.qrExpiresAt?.toISOString() ?? null}
+                expired={order.qrExpired}
+              />
+            ) : null}
+
+            {order.status !== "PAID" && isManual ? (
               <div className="rounded-2xl border border-canvas-deep p-6">
                 <h2 className="font-display text-lg font-medium text-ink">
                   How to pay
