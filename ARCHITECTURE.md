@@ -82,9 +82,11 @@ app/
   layout.tsx              document shell, fonts, and the colour palette <style>
   (site)/                 storefront: reads categories once, renders the chrome
     page.tsx              landing page
-    products/             catalogue, filtered by ?category=<slug>
+    products/             catalogue, filtered by ?category=<slug> and ?price=<min>-<max>
     products/[slug]/      product detail
     faqs/                 every question, not just the home page selection
+    about/                studio story and photograph, editable from admin
+    contact/              email (from env), phone, address, map, mailto form
     cart/                 static shell, contents priced client-side
     checkout/             address, shipping fee, order creation, sign-up panel
     orders/[token]/       confirmation, keyed on an unguessable token
@@ -100,11 +102,12 @@ app/
   api/account/me/         who is signed in, for the navbar
   api/psgc/               location lookups for the cascading address selects
   api/paymongo/webhook/   payment confirmation, signature-verified
+  api/search/             product and category search, used by the navbar overlay
   admin/                  force-dynamic, noindex
     login/                sign-in, outside the guarded route group
     (panel)/              everything below is behind the session guard
     orders/               every order, filterable; [id] confirms and fulfils one
-    store/                store details, opening hours, admin credentials
+    store/                store details, opening hours, admin credentials, logo
     shipping/             delivery toggle, flat rate, per-location rates
     delivery/             which days customers can pick, rush fee, closures
     theme/                colour palette
@@ -115,6 +118,8 @@ app/
     gallery/              studio photo grid
     promo/                seasonal banner, with an on/off switch
     faqs/                 questions for both the home block and /faqs
+    about/                about page content and image
+    contact/              contact page copy, address, phone, map embed
     categories/           list, new, [id]
     products/             list, new, [id]
     occasions/            list, new, [id]
@@ -131,11 +136,11 @@ two can never disagree about what the shop contains.
 
 ## Data model
 
-`prisma/schema.prisma`. Fourteen migrations so far: `hero_section`, `theme`,
+`prisma/schema.prisma`. Sixteen migrations so far: `hero_section`, `theme`,
 `catalog`, `best_seller_rank`, `occasion`, `why_choose_us_and_how_it_works`,
 `reviews_gallery_promo`, `faq_and_newsletter`,
 `store_settings_and_admin_auth`, `shipping`, `orders`, `paymongo`,
-`customer_accounts`, `delivery_dates`.
+`customer_accounts`, `delivery_dates`, `about_and_contact`, `store_logo`.
 
 ### Migrating through the Supabase pooler
 
@@ -195,6 +200,8 @@ is live?" question to answer.
 | `StoreSettings`        | `store`          | `BusinessHour`                        |
 | `ShippingSettings`     | `shipping`       | `ShippingRate`                        |
 | `DeliverySettings`     | `delivery`       | `DeliveryDateException`               |
+| `AboutSection`         | `about`          | —                                     |
+| `ContactSection`       | `contact`        | —                                     |
 
 Children cascade on delete.
 
@@ -269,6 +276,8 @@ are Client Components and would otherwise pull Prisma into the browser bundle.
 | `lib/customer.ts`          | `lib/customer-auth.ts`, `lib/customer-queries.ts` |
 | `lib/orders.ts`            | `lib/order-queries.ts`                          |
 | `lib/delivery.ts`          | `lib/delivery-queries.ts`                       |
+| `lib/about.ts`             | `lib/about-queries.ts`                          |
+| `lib/contact.ts`           | `lib/contact-queries.ts`                        |
 | `lib/nav.ts`               | `lib/auth.ts`, `lib/password.ts`                |
 | `lib/site-url.ts`          | `lib/email.ts`, `lib/order-emails.ts`           |
 
@@ -409,6 +418,8 @@ Mutations call `revalidatePath`, which matters because `/` is prerendered:
 | Shipping       | nothing; only checkout reads it, and that is dynamic        |
 | Order status   | `/admin/orders` and that order's own page — both dynamic     |
 | Delivery dates | `revalidatePath("/admin/delivery")`; checkout is dynamic     |
+| About          | `revalidatePath("/about")`                                  |
+| Contact        | `revalidatePath("/contact")`                                |
 
 The customer-facing account actions follow the same rule: those pages read the
 session so they are dynamic already, and only the address mutations revalidate —
@@ -1131,3 +1142,54 @@ small print are in the component. Its form does write to the database.
   implemented and none of it has been driven with assistive technology.
 - **Two categories have no products.** Graduation and Money Bouquets, because the
   original hard-coded data had none. They render an empty state.
+
+## Search
+
+The navbar's search icon opens a full-screen overlay (`components/layout/Navbar.tsx`).
+Input is debounced (300 ms) and fetches `/api/search?q=<term>`, which returns up to
+5 products and 5 categories whose `name` matches case-insensitively via Prisma
+`contains`. Results link directly to the product detail page or the filtered
+catalogue. The overlay closes on Escape, a backdrop click or navigating to a result.
+
+The route is `no-store` and carries no auth — product and category names are already
+public. It does not paginate; the cap of 5 keeps the query trivially fast.
+
+## Price filter
+
+`/products` accepts an optional `?price=<min>-<max>` search param alongside the
+existing `?category=<slug>`. The ranges exposed in the UI are:
+
+- 1–500, 501–1000, 1001–1500, 1501–2000, 2001+
+
+Filtering is done in-memory on the server after `listProducts()` returns, which is
+fine at catalogue scale. The `PriceFilter` client component
+(`app/(site)/products/PriceFilter.tsx`) renders a `<select>` that updates the URL
+via `router.push`, preserving the category param.
+
+## About and Contact pages
+
+Two standalone singletons (`AboutSection`, `ContactSection`) following the same
+pattern as the other sections: a pure module (`lib/about.ts`, `lib/contact.ts`)
+with the id, type and defaults, and a `*-queries.ts` module that reads the database.
+
+`/about` renders the image prominently alongside body paragraphs. `/contact`
+displays:
+
+- email — read from `process.env.CONTACT_TO_EMAIL`, not the database
+- phone and address — from `ContactSection`
+- a simple `mailto:` form
+- an optional Google Maps iframe (admin sets the embed URL)
+
+Admin panels at `/admin/about` and `/admin/contact` follow the three-file pattern.
+
+## Custom logo
+
+`StoreSettings` gained three nullable columns: `logoUrl`, `logoWidth`, `logoHeight`.
+When `logoUrl` is set, the `Logo` component (`components/ui/Logo.tsx`) renders a
+`next/image` at the specified pixel dimensions instead of the inline SVG + text
+mark. The admin uploads the file in `/admin/store` (Logo section), and can remove it
+to revert to the default. Both the navbar and footer receive the logo data through
+the site layout.
+
+`storeName` still lives in settings and is used for the accessible `aria-label`
+and page titles regardless of which visual form is shown.
