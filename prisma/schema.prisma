@@ -410,6 +410,135 @@ model PromoBannerSection {
   @@map("promo_banner_section")
 }
 
+/// Which PSGC level a shipping rate is keyed to.
+enum ShippingScope {
+  REGION
+  CITY
+}
+
+/// Delivery charging. One row, addressed by a fixed id.
+model ShippingSettings {
+  id String @id
+
+  /// Off means no delivery charge is added at all.
+  isEnabled Boolean @default(true)
+
+  /// Whole pesos, charged when no location rate matches.
+  flatRate Int
+
+  rates ShippingRate[]
+
+  updatedAt DateTime @updatedAt
+
+  @@map("shipping_settings")
+}
+
+/// A delivery charge for one region or city/municipality.
+///
+/// Resolution order is city, then region, then the flat rate — see
+/// `resolveShippingFee` in lib/shipping.ts.
+model ShippingRate {
+  id    String        @id @default(uuid())
+  scope ShippingScope
+
+  /// PSGC code of the region or city/municipality.
+  psgcCode String
+  /// Name at the time it was added, so the admin list and past orders stay
+  /// readable without calling the PSGC API again.
+  label String
+
+  /// Whole pesos.
+  fee Int
+
+  settingsId String
+  settings   ShippingSettings @relation(fields: [settingsId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([scope, psgcCode])
+  @@index([settingsId])
+  @@map("shipping_rate")
+}
+
+/// Store identity, contact details and payment configuration. One row,
+/// addressed by a fixed id.
+model StoreSettings {
+  id String @id
+
+  storeName String
+  tagline   String
+
+  email String
+  phone String
+  /// Free-form postal address, one line per entry.
+  addressLines String[]
+
+  /// Where manual-payment customers send their order number.
+  facebookUrl String
+
+  /// QR code the admin uploads for manual payment. Null until one is uploaded,
+  /// which is what hides manual payment as an option at checkout.
+  manualPaymentQrUrl String?
+  /// Shown alongside the QR code and the order number.
+  manualPaymentInstructions String
+
+  businessHours BusinessHour[]
+
+  updatedAt DateTime @updatedAt
+
+  @@map("store_settings")
+}
+
+/// One row of the opening-hours table in the footer.
+model BusinessHour {
+  id    String @id @default(uuid())
+  /// e.g. "Monday – Friday".
+  days String
+  /// e.g. "8:00 AM – 7:00 PM".
+  hours String
+
+  position Int
+
+  storeId String
+  store   StoreSettings @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, position])
+  @@map("business_hour")
+}
+
+/// Someone who can edit the site. Credentials are managed in /admin/store.
+model AdminUser {
+  id    String @id @default(uuid())
+  email String @unique
+  /// scrypt, stored as `salt:derivedKey` in hex. See lib/auth.ts.
+  passwordHash String
+
+  sessions AdminSession[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("admin_user")
+}
+
+/// A signed-in admin browser.
+///
+/// The cookie holds a random token; only its SHA-256 hash is stored, so a leaked
+/// database dump cannot be replayed as a login.
+model AdminSession {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  expiresAt DateTime
+
+  adminId String
+  admin   AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+  @@map("admin_session")
+}
+
 /// FAQ copy for both the landing section and the dedicated /faqs page, so one
 /// admin panel covers both. One row, addressed by a fixed id.
 model FaqSection {

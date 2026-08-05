@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { useCart } from "@/components/cart/useCart";
 import { ChevronDownIcon, CloseIcon, MenuIcon, SearchIcon, BagIcon } from "@/components/ui/Icons";
 import { Logo } from "@/components/ui/Logo";
 import { categoryHref, type NavCategory } from "@/lib/nav";
@@ -17,9 +18,19 @@ const NAV_LINKS: NavLink[] = [
   { label: "About", href: "/#about" },
 ];
 
-export function Navbar({ categories }: { categories: NavCategory[] }) {
+export function Navbar({
+  categories,
+  storeName,
+}: {
+  categories: NavCategory[];
+  storeName: string;
+}) {
   /** The first three categories get a thumbnail in the mega-menu's promo rail. */
   const promoCategories = categories.slice(0, 3);
+
+  // Zero on the server, then the real count once hydrated — which is why the
+  // badge is only rendered when there is something in it.
+  const { count: cartCount } = useCart();
 
   const [scrolled, setScrolled] = useState(false);
   const [desktopDropdownOpen, setDesktopDropdownOpen] = useState(false);
@@ -125,7 +136,7 @@ export function Navbar({ categories }: { categories: NavCategory[] }) {
 
       <nav aria-label="Main" className="container-page">
         <div className="flex h-18 items-center justify-between gap-4">
-          <Logo tone={onDark ? "light" : "ink"} />
+          <Logo tone={onDark ? "light" : "ink"} storeName={storeName} />
 
           {/* ---------- Desktop navigation ---------- */}
           <ul className="hidden items-center gap-1 lg:flex">
@@ -253,15 +264,20 @@ export function Navbar({ categories }: { categories: NavCategory[] }) {
               <SearchIcon className="h-[1.15rem] w-[1.15rem]" />
             </button>
 
-            <button
-              type="button"
-              aria-label="Shopping bag, 0 items"
-              className={`relative hidden h-10 w-10 items-center justify-center rounded-full transition-colors duration-300 sm:inline-flex ${linkColor}`}
+            <Link
+              href="/cart"
+              aria-label={`Cart, ${cartCount} ${cartCount === 1 ? "item" : "items"}`}
+              className={`relative inline-flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-300 ${linkColor}`}
             >
               <BagIcon className="h-[1.15rem] w-[1.15rem]" />
-              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-blush-500" />
-            </button>
-
+              {/* Hidden until the cookie has been read, so the count never
+                  flashes 0 on a page that was prerendered. */}
+              {cartCount > 0 ? (
+                <span className="absolute -top-0.5 -right-0.5 inline-flex h-[1.05rem] min-w-[1.05rem] items-center justify-center rounded-full bg-blush-500 px-1 text-[0.62rem] font-semibold text-white">
+                  {cartCount > 99 ? "99+" : cartCount}
+                </span>
+              ) : null}
+            </Link>
             <Link
               href="/products"
               className="ml-1 hidden rounded-full bg-moss-700 px-5 py-2.5 text-sm font-medium text-canvas transition-colors duration-300 hover:bg-moss-900 lg:inline-flex"

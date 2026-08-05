@@ -1,18 +1,22 @@
 import Link from "next/link";
-import { BRAND } from "@/lib/data";
 
 /**
  * Brand mark. The glyph is inline SVG so the logo can never render as a
  * broken image, and it inherits the surrounding text colour.
+ *
+ * The wordmark is drawn from two spans rather than `storeName` so the ampersand
+ * can be tinted; `storeName` is used for the accessible label.
  */
 export function Logo({
   href = "/",
   tone = "ink",
   className = "",
+  storeName,
 }: {
   href?: string;
   tone?: "ink" | "light";
   className?: string;
+  storeName: string;
 }) {
   const textColor = tone === "light" ? "text-canvas" : "text-ink";
   const markColor = tone === "light" ? "text-blush-300" : "text-moss-700";
@@ -20,7 +24,7 @@ export function Logo({
   return (
     <Link
       href={href}
-      aria-label={`${BRAND.name} — home`}
+      aria-label={`${storeName} — home`}
       className={`group inline-flex items-center gap-2.5 ${className}`}
     >
       <svg

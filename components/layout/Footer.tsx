@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BRAND, BUSINESS_HOURS } from "@/lib/data";
+
 import {
   ClockIcon,
   FacebookIcon,
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/Icons";
 import { Logo } from "@/components/ui/Logo";
 import { categoryHref, type NavCategory } from "@/lib/nav";
+import type { StoreContent } from "@/lib/store";
 
 const SHOP_LINKS = [
   { label: "Featured bouquets", href: "/#featured" },
@@ -36,7 +37,7 @@ const SOCIALS = [
   { label: "Pinterest", href: "/#gallery", Icon: PinterestIcon },
 ];
 
-export function Footer({ categories }: { categories: NavCategory[] }) {
+export function Footer({ categories, store }: { categories: NavCategory[]; store: StoreContent }) {
   const year = new Date().getFullYear();
   // Top six only, so the footer stays scannable rather than listing every one.
   const footerCategories = categories.slice(0, 6);
@@ -47,10 +48,10 @@ export function Footer({ categories }: { categories: NavCategory[] }) {
         <div className="grid gap-12 lg:grid-cols-12 lg:gap-8">
           {/* Brand + socials */}
           <div className="lg:col-span-4">
-            <Logo tone="light" />
+            <Logo tone="light" storeName={store.storeName} />
 
             <p className="mt-6 max-w-xs text-sm leading-relaxed text-canvas/60">
-              {BRAND.tagline}. A four-person florist studio in Pasig City,
+              {store.tagline}. A four-person florist studio in Pasig City,
               delivering across Metro Manila since 2020.
             </p>
 
@@ -63,7 +64,7 @@ export function Footer({ categories }: { categories: NavCategory[] }) {
                   <li key={label}>
                     <Link
                       href={href}
-                      aria-label={`${BRAND.name} on ${label}`}
+                      aria-label={`${store.storeName} on ${label}`}
                       className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-canvas/15 text-canvas/70 transition-colors duration-300 hover:border-canvas/40 hover:bg-canvas/10 hover:text-canvas"
                     >
                       <Icon className="h-4 w-4" />
@@ -141,7 +142,7 @@ export function Footer({ categories }: { categories: NavCategory[] }) {
               <li className="flex gap-3">
                 <MapPinIcon className="mt-0.5 h-4 w-4 shrink-0 text-blush-300" />
                 <address className="not-italic text-canvas/65">
-                  {BRAND.addressLines.map((line) => (
+                  {store.addressLines.map((line) => (
                     <span key={line} className="block">
                       {line}
                     </span>
@@ -151,19 +152,19 @@ export function Footer({ categories }: { categories: NavCategory[] }) {
               <li className="flex gap-3">
                 <PhoneIcon className="mt-0.5 h-4 w-4 shrink-0 text-blush-300" />
                 <a
-                  href={`tel:${BRAND.phone.replace(/[^+\d]/g, "")}`}
+                  href={`tel:${store.phone.replace(/[^+\d]/g, "")}`}
                   className="text-canvas/65 transition-colors duration-300 hover:text-canvas"
                 >
-                  {BRAND.phone}
+                  {store.phone}
                 </a>
               </li>
               <li className="flex gap-3">
                 <MailIcon className="mt-0.5 h-4 w-4 shrink-0 text-blush-300" />
                 <a
-                  href={`mailto:${BRAND.email}`}
+                  href={`mailto:${store.email}`}
                   className="break-all text-canvas/65 transition-colors duration-300 hover:text-canvas"
                 >
-                  {BRAND.email}
+                  {store.email}
                 </a>
               </li>
             </ul>
@@ -173,7 +174,7 @@ export function Footer({ categories }: { categories: NavCategory[] }) {
               Business hours
             </h2>
             <dl className="mt-4 space-y-2 text-sm">
-              {BUSINESS_HOURS.map((entry) => (
+              {store.businessHours.map((entry) => (
                 <div
                   key={entry.days}
                   className="flex items-baseline justify-between gap-3 border-b border-canvas/10 pb-2 last:border-b-0"
@@ -191,7 +192,7 @@ export function Footer({ categories }: { categories: NavCategory[] }) {
       <div className="border-t border-canvas/10">
         <div className="container-page flex flex-col items-center justify-between gap-4 py-6 sm:flex-row">
           <p className="text-xs text-canvas/45">
-            &copy; {year} {BRAND.name}. All rights reserved.
+            &copy; {year} {store.storeName}. All rights reserved.
           </p>
           <ul className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
             {["Privacy policy", "Terms of service", "Delivery policy"].map((label) => (

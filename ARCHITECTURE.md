@@ -70,8 +70,15 @@ app/
     products/             catalogue, filtered by ?category=<slug>
     products/[slug]/      product detail
     faqs/                 every question, not just the home page selection
+    cart/                 static shell, contents priced client-side
     newsletter-actions.ts the only Server Action on the public site
-  admin/                  editing UI, force-dynamic, noindex
+  api/cart/               the cart, priced from the database
+  api/psgc/               location lookups for the cascading address selects
+  admin/                  force-dynamic, noindex
+    login/                sign-in, outside the guarded route group
+    (panel)/              everything below is behind the session guard
+    store/                store details, opening hours, admin credentials
+    shipping/             delivery toggle, flat rate, per-location rates
     theme/                colour palette
     hero/                 hero section
     why-choose-us/        studio photos, selling points, stat strip
@@ -96,9 +103,10 @@ two can never disagree about what the shop contains.
 
 ## Data model
 
-`prisma/schema.prisma`. Eight migrations so far: `hero_section`, `theme`,
+`prisma/schema.prisma`. Ten migrations so far: `hero_section`, `theme`,
 `catalog`, `best_seller_rank`, `occasion`, `why_choose_us_and_how_it_works`,
-`reviews_gallery_promo`, `faq_and_newsletter`.
+`reviews_gallery_promo`, `faq_and_newsletter`,
+`store_settings_and_admin_auth`, `shipping`.
 
 **Singletons.** Each landing-page section holds exactly one row, addressed by a
 fixed id. A known id keeps reads and the admin upsert trivial, with no "which row
@@ -114,6 +122,8 @@ is live?" question to answer.
 | `GallerySection`       | `gallery`        | `GalleryImage`                        |
 | `PromoBannerSection`   | `promo`          | —                                     |
 | `FaqSection`           | `faqs`           | `Faq`                                 |
+| `StoreSettings`        | `store`          | `BusinessHour`                        |
+| `ShippingSettings`     | `shipping`       | `ShippingRate`                        |
 
 Children cascade on delete.
 
@@ -200,7 +210,37 @@ content rather than two.
 `lib/data.ts` is the original hard-coded content. It is still the source for the
 sections listed below, and the seed script reads it to populate the database.
 
+## Admin authentication
+
+Three layers, because no single one is enough:
+
+1. **`proxy.ts`** redirects anonymous browsers away from `/admin`. It only checks
+   that the cookie *exists* — validating it would mean a database round trip on
+   every request, and `proxy` cannot import Prisma. That is why `ADMIN_COOKIE`
+   lives in `lib/auth-cookies.ts`, a module with no imports.
+2. **`app/admin/(panel)/layout.tsx`** validates the session for real, so an
+   expired or forged cookie cannot render the panel.
+3. **`requireAdmin()`** at the top of every admin Server Action. This is the one
+   that matters: a Server Action is a POST endpoint and can be invoked without
+   ever loading the layout. Authorisation has to sit next to the write.
+
+The sign-in page is at `app/admin/login`, deliberately *outside* the `(panel)`
+route group — sharing that layout would redirect the login page to itself.
+
+Passwords use `scrypt` from `node:crypto`, stored as `salt:key` in hex, so there
+is no native dependency to build. Session cookies hold a random token and only
+its SHA-256 hash is stored, meaning a leaked database dump cannot be replayed as
+a login. Cookies are `httpOnly`, `sameSite=lax`, and `secure` in production.
+
+Default credentials are `admin@admin` / `admin`, created by the seed on first run
+and never reset afterwards. **Change them.** Note the change form enforces a
+minimum of 8 characters, so it will not let you set the password back to `admin`
+— the short default exists only to get you in the first time.
+
 ## Admin panel
+
+Shared form furniture lives in `components/admin/`, not under `app/`, so the
+login page and the panel can both use it.
 
 Every editor follows the same three-file shape:
 
@@ -240,6 +280,104 @@ Mutations call `revalidatePath`, which matters because `/` is prerendered:
 | Gallery        | `revalidatePath("/")`                                      |
 | Promo banner   | `revalidatePath("/")`                                      |
 | FAQs           | `revalidatePath("/")` plus `revalidatePath("/faqs")`       |
+| Store settings | `revalidatePath("/", "layout")` — footer and page titles    |
+| Shipping       | nothing; only checkout reads it, and that is dynamic        |
+
+## Cart
+
+The cart is a cookie holding **only product ids and quantities**. Prices, names
+and availability are read from the database every time the cart is shown, and
+again when an order is placed. A tampered cookie can change *what* you are buying
+but never *what it costs* — verified: a cookie with an injected `price` field is
+ignored.
+
+Unlike the session cookie this one is deliberately readable by the browser. There
+is nothing secret in it, and the client needs to write it so the header count
+updates without a round trip.
+
+| Piece                            | Role                                          |
+| -------------------------------- | --------------------------------------------- |
+| `lib/cart.ts`                    | Cookie format and pure reducers. Safe on both sides. |
+| `lib/cart-server.ts`             | Reads the cookie, prices it from the database  |
+| `components/cart/useCart.ts`     | Client store, backed by the cookie             |
+| `app/api/cart/route.ts`          | Returns the priced cart to the browser         |
+
+`hydrateCart` in `lib/cart-server.ts` is the single place a cart total is
+calculated, and checkout uses the same function — so what the customer is shown
+and what they are charged cannot drift apart.
+
+Two decisions worth knowing:
+
+**The cart is client-owned, not read in a layout.** A layout that reads cookies
+forces every page to render per-request, and the landing page is prerendered. The
+cost is that the server render does not know the cart, so the header badge only
+appears once hydrated and the cart page shows "Loading" rather than guessing
+"empty" — guessing would flash an empty cart at someone who has one.
+
+**`useCart` is a `useSyncExternalStore`, not React state in a provider.** The
+cookie genuinely is external state, and reading it on mount with an effect means
+calling `setState` in an effect body, which the React Compiler rejects. Snapshots
+are cached against the raw cookie string to stay referentially stable.
+
+On the cart page, quantities render from the client store so the steppers respond
+instantly, while prices come from the server. The totals shown there are display
+arithmetic over server-supplied prices.
+
+The cookie is capped at 30 lines and 20 per line, which worst-cases to about 2.3KB
+— comfortably inside the ~4KB cookie limit. Anything unparseable, duplicated or
+out of range is corrected rather than thrown, so a broken cookie cannot take the
+site down.
+
+Add-to-cart lives on the product page only. `ProductCard`'s bag icon is
+decorative: the card uses a stretched link so the whole tile is one tab stop, and
+putting a button inside that would add a second stop per tile.
+
+## Addresses and shipping
+
+Addresses are built from the Philippine Standard Geographic Code via
+[psgc.cloud](https://psgc.cloud) — no key or sign-up. Region, province and
+city/municipality come from the API; barangay, street and postal code are plain
+text.
+
+`lib/psgc.ts` wraps the upstream API and `app/api/psgc/route.ts` exposes it to the
+browser. Going through our own route rather than calling psgc.cloud from the
+client keeps their "please cache" request honoured in one place: every call sets
+`revalidate` to a day, which is right for data that only changes on PSA release
+cycles.
+
+Three upstream quirks are handled in `lib/psgc.ts`, and are the reason the wrapper
+exists at all:
+
+- **Not every region has provinces.** NCR returns an empty array, so
+  `LocationPicker` hides the province select and loads cities from the region.
+- **`zip_code` is often blank** — 7 of 17 NCR cities have one. That is why the
+  postal code field is prefilled "whenever possible" rather than derived, and
+  stays editable.
+- **The `province` field on city payloads is wrong for NCR** (it says
+  "Sarangani"), so it is ignored entirely.
+
+Sub-municipalities are filtered out. They are districts of Manila, and listing
+"Tondo I/II" beside "City of Manila" makes the choice ambiguous for the customer
+and for the shipping rate keyed off it. Barangay covers that detail.
+
+`components/ui/LocationPicker.tsx` is the shared cascading select. It submits both
+codes *and* names, so an order or saved address stays readable without calling the
+API again, and historical records do not shift if upstream renames something. Each
+list is cached against the query that produced it and the visible options are
+derived from whether that key still matches — that is what keeps stale options
+from flashing without clearing state inside an effect, which the React Compiler
+rejects.
+
+Shipping fees resolve in `resolveShippingFee` (`lib/shipping.ts`):
+
+1. a rate for the selected city/municipality
+2. otherwise a rate for the region
+3. otherwise the flat rate
+
+Disabled shipping short-circuits to zero. That ordering is the point of the table:
+a region can be priced broadly and individual cities corrected without unpicking
+anything. `ShippingRate` stores the PSGC code, the scope (`REGION` or `CITY`), and
+the name at the time it was added.
 
 ## Images
 
@@ -260,17 +398,27 @@ These sections read `lib/data.ts` and have no admin page yet:
 `Newsletter` is the last section with its copy inline — the heading, blurb and
 small print are in the component. Its form does write to the database.
 
-Also still in `lib/data.ts`: `BRAND` (used by the footer, logo, and metadata),
-`BUSINESS_HOURS` (the footer), and `formatPrice`, which is a shared helper rather
-than content and can stay. The `CATEGORIES`, `FEATURED_PRODUCTS`, `BEST_SELLERS`,
-`OCCASIONS`, `REVIEWS`, `GALLERY_IMAGES`, `FAQS`, `WHY_CHOOSE_US` and
-`HOW_IT_WORKS` constants are now only read by `prisma/seed.ts`.
+`lib/data.ts` now exports only one thing the app still uses at runtime:
+`formatPrice`, a helper rather than content. Everything else in that file
+(`BRAND`, `BUSINESS_HOURS`, `CATEGORIES`, `FEATURED_PRODUCTS`, `BEST_SELLERS`,
+`OCCASIONS`, `REVIEWS`, `GALLERY_IMAGES`, `FAQS`, `WHY_CHOOSE_US`,
+`HOW_IT_WORKS`) is read only by `prisma/seed.ts`.
 
 ## Known gaps
 
-- **`/admin` has no authentication.** Anyone who can reach the URL can rewrite
-  the site, and the Server Actions are reachable by direct POST regardless of the
-  UI. This needs solving before a public deploy.
+- **The default admin password is `admin`.** Fine for first sign-in, not for a
+  deployment. There is no prompt forcing a change yet.
+- **No rate limiting on sign-in.** Passwords are hashed with scrypt, which is
+  slow by design, but nothing throttles repeated attempts.
+- **The flat shipping rate is a placeholder.** Nothing in the original site
+  charged for delivery, so ₱150 is a starting figure, not migrated content. No
+  location rates are seeded, so every address falls to the flat rate until real
+  ones are set in `/admin/shipping`.
+- **`/api/psgc` is public and unauthenticated.** It only serves public reference
+  data and is cached for a day, so the upstream API is shielded, but the route
+  itself has no throttle.
+- **PSGC data is community-maintained.** psgc.cloud mirrors the official PSGC but
+  is not the PSA. Verify anything that matters for delivery boundaries.
 - **The newsletter only stores addresses.** No sending, no double opt-in, no
   unsubscribe, and no admin screen — deliberately, until someone decides what it
   is for. Read the rows with `npx prisma studio` or the Supabase table editor.
@@ -288,6 +436,10 @@ than content and can stay. The `CATEGORIES`, `FEATURED_PRODUCTS`, `BEST_SELLERS`
   mean a table keyed on `Product` and deriving those two figures from it.
 - **The gallery has no real Instagram link.** `GallerySection.ctaHref` is seeded
   as `#gallery`; set the actual profile URL in `/admin/gallery`.
-- **No cart or checkout.** Product pages link to the contact section instead.
+- **No checkout yet.** The cart's Checkout button points at `/checkout`, which
+  does not exist — it is the next thing to build.
+- **The cart's interactive parts are not browser-tested.** Pricing, cookie
+  handling and tamper-resistance are covered server-side, but the steppers, badge
+  and hydration have only been reasoned about, not clicked.
 - **Two categories have no products.** Graduation and Money Bouquets, because the
   original hard-coded data had none. They render an empty state.

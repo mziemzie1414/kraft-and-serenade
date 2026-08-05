@@ -1,13 +1,20 @@
 import "dotenv/config";
 import { BEST_SELLERS, CATEGORIES, FEATURED_PRODUCTS, OCCASIONS } from "../lib/data";
 import { HERO_DEFAULTS, HERO_ID } from "../lib/hero";
+import { hashPassword } from "../lib/auth";
 import { FAQ_DEFAULTS, FAQ_ID } from "../lib/faq";
 import { GALLERY_DEFAULTS, GALLERY_ID } from "../lib/gallery";
 import { HOW_IT_WORKS_DEFAULTS, HOW_IT_WORKS_ID } from "../lib/how-it-works";
 import { prisma } from "../lib/prisma";
 import { PROMO_DEFAULTS, PROMO_ID } from "../lib/promo";
 import { REVIEWS_DEFAULTS, REVIEWS_ID } from "../lib/reviews";
+import { SHIPPING_DEFAULTS, SHIPPING_ID } from "../lib/shipping";
+import { STORE_DEFAULTS, STORE_ID } from "../lib/store";
 import { THEME_DEFAULTS, THEME_ID } from "../lib/theme";
+
+/** Handed over on first run; changed from /admin/store afterwards. */
+const DEFAULT_ADMIN_EMAIL = "admin@admin";
+const DEFAULT_ADMIN_PASSWORD = "admin";
 import { WHY_CHOOSE_US_DEFAULTS, WHY_CHOOSE_US_ID } from "../lib/why-choose-us";
 
 /**
@@ -157,6 +164,55 @@ async function seedMoreSections() {
       position: index,
       sectionId: FAQ_ID,
     })),
+  });
+}
+
+/** Store details and the default admin account. */
+async function seedStoreAndAdmin() {
+  const { businessHours, ...store } = STORE_DEFAULTS;
+
+  await prisma.storeSettings.upsert({
+    where: { id: STORE_ID },
+    create: { id: STORE_ID, ...store },
+    update: store,
+  });
+
+  await prisma.businessHour.deleteMany({ where: { storeId: STORE_ID } });
+  await prisma.businessHour.createMany({
+    data: businessHours.map((row, index) => ({
+      ...row,
+      position: index,
+      storeId: STORE_ID,
+    })),
+  });
+
+  // Created once and then left alone, so re-seeding never resets a password the
+  // admin has since changed.
+  const existing = await prisma.adminUser.findFirst();
+
+  if (!existing) {
+    await prisma.adminUser.create({
+      data: {
+        email: DEFAULT_ADMIN_EMAIL,
+        passwordHash: await hashPassword(DEFAULT_ADMIN_PASSWORD),
+      },
+    });
+    console.log(
+      `Created the default admin (${DEFAULT_ADMIN_EMAIL} / ${DEFAULT_ADMIN_PASSWORD}). Change it in /admin/store.`,
+    );
+  }
+}
+
+/**
+ * Shipping defaults. Location rates are left empty on purpose: inventing fees
+ * would be worse than every address falling to the flat rate until someone sets
+ * real ones in /admin/shipping.
+ */
+async function seedShipping() {
+  await prisma.shippingSettings.upsert({
+    where: { id: SHIPPING_ID },
+    create: { id: SHIPPING_ID, ...SHIPPING_DEFAULTS },
+    update: {},
   });
 }
 
@@ -323,15 +379,17 @@ async function seedCatalog() {
  * moving off hard-coded data. Safe to re-run.
  */
 async function main() {
+  await seedStoreAndAdmin();
+  await seedShipping();
   await seedSiteContent();
   await seedSections();
   await seedMoreSections();
   const counts = await seedCatalog();
 
   console.log(
-    "Seeded theme, hero, why-choose-us, how-it-works, reviews, gallery, promo, " +
-      `faqs, ${counts.categories} categories, ${counts.products} products and ` +
-      `${counts.occasions} occasions.`,
+    "Seeded store, theme, hero, why-choose-us, how-it-works, reviews, gallery, " +
+      `promo, faqs, ${counts.categories} categories, ${counts.products} products ` +
+      `and ${counts.occasions} occasions.`,
   );
 }
 

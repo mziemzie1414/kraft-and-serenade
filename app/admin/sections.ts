@@ -1,6 +1,18 @@
 /** Site-wide settings, not tied to one part of the page. */
 export const ADMIN_SETTINGS = [
   {
+    name: "Store settings",
+    href: "/admin/store",
+    description:
+      "Name, contact details, address, opening hours, Facebook page and the manual payment QR code.",
+  },
+  {
+    name: "Shipping",
+    href: "/admin/shipping",
+    description:
+      "Whether delivery is charged, the flat rate, and per-region or per-city exceptions.",
+  },
+  {
     name: "Colours",
     href: "/admin/theme",
     description:

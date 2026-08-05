@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AddToCart } from "@/components/cart/AddToCart";
 import { ArrowRightIcon, LeafIcon, SparkleIcon, TruckIcon } from "@/components/ui/Icons";
 import { ProductCard } from "@/components/ui/ProductCard";
 import { Rating } from "@/components/ui/Rating";
@@ -149,17 +150,19 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
               </li>
             </ul>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <AddToCart productId={product.id} productName={product.name} />
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/#contact"
-                className="group inline-flex items-center justify-center gap-2 rounded-full bg-moss-900 px-7 py-4 text-sm font-semibold text-canvas transition-all duration-300 hover:bg-moss-700"
+                className="group inline-flex items-center justify-center gap-2 rounded-full border border-canvas-deep px-7 py-3.5 text-sm font-semibold text-ink transition-colors duration-300 hover:border-moss-400"
               >
                 Ask about this bouquet
                 <ArrowRightIcon className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
               <Link
                 href={`/products?category=${product.category.slug}`}
-                className="inline-flex items-center justify-center rounded-full border border-canvas-deep px-7 py-4 text-sm font-semibold text-ink transition-colors duration-300 hover:border-moss-400"
+                className="inline-flex items-center justify-center rounded-full border border-canvas-deep px-7 py-3.5 text-sm font-semibold text-ink transition-colors duration-300 hover:border-moss-400"
               >
                 More {product.category.shortName.toLowerCase()} bouquets
               </Link>
