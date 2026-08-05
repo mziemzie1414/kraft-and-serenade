@@ -12,6 +12,9 @@ export type StoreContent = {
   facebookUrl: string;
   manualPaymentQrUrl: string | null;
   manualPaymentInstructions: string;
+  logoUrl: string | null;
+  logoWidth: number | null;
+  logoHeight: number | null;
   businessHours: { days: string; hours: string }[];
 };
 
@@ -36,6 +39,9 @@ export const STORE_DEFAULTS: StoreContent = {
   manualPaymentQrUrl: null,
   manualPaymentInstructions:
     "Scan the QR code to pay, then send us your order number and a screenshot of the receipt on Facebook so we can confirm it.",
+  logoUrl: null,
+  logoWidth: null,
+  logoHeight: null,
   businessHours: [
     { days: "Monday – Friday", hours: "8:00 AM – 7:00 PM" },
     { days: "Saturday", hours: "8:00 AM – 8:00 PM" },

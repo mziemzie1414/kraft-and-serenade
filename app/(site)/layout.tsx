@@ -3,6 +3,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { listCategories } from "@/lib/catalog-queries";
 import type { NavCategory } from "@/lib/nav";
 import { getStore } from "@/lib/store";
+import type { LogoData } from "@/components/ui/Logo";
 
 /** Storefront chrome. Everything the public site shares, minus `/admin`. */
 export default async function SiteLayout({ children }: LayoutProps<"/">) {
@@ -18,6 +19,12 @@ export default async function SiteLayout({ children }: LayoutProps<"/">) {
     productCount: category._count.products,
   }));
 
+  const logo: LogoData = {
+    logoUrl: store.logoUrl,
+    logoWidth: store.logoWidth,
+    logoHeight: store.logoHeight,
+  };
+
   return (
     <>
       {/* Targets the <main> below rather than a landing-page section, so the
@@ -29,11 +36,11 @@ export default async function SiteLayout({ children }: LayoutProps<"/">) {
         Skip to content
       </a>
 
-      <Navbar categories={categories} storeName={store.storeName} />
+      <Navbar categories={categories} storeName={store.storeName} logo={logo} />
       <main id="main-content" className="flex-1">
         {children}
       </main>
-      <Footer categories={categories} store={store} />
+      <Footer categories={categories} store={store} logo={logo} />
     </>
   );
 }

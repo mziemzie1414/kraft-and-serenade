@@ -9,7 +9,7 @@ import {
 } from "@/components/account/AccountMenu";
 import { useCart } from "@/components/cart/useCart";
 import { ChevronDownIcon, CloseIcon, MenuIcon, SearchIcon, BagIcon } from "@/components/ui/Icons";
-import { Logo } from "@/components/ui/Logo";
+import { Logo, type LogoData } from "@/components/ui/Logo";
 import { categoryHref, type NavCategory } from "@/lib/nav";
 
 /* ── Search result types ─────────────────────────────────────────────── */
@@ -47,9 +47,11 @@ const NAV_LINKS: NavLink[] = [
 export function Navbar({
   categories,
   storeName,
+  logo,
 }: {
   categories: NavCategory[];
   storeName: string;
+  logo?: LogoData | null;
 }) {
   /** The first three categories get a thumbnail in the mega-menu's promo rail. */
   const promoCategories = categories.slice(0, 3);
@@ -210,7 +212,7 @@ export function Navbar({
 
       <nav aria-label="Main" className="container-page">
         <div className="flex h-18 items-center justify-between gap-4">
-          <Logo tone={onDark ? "light" : "ink"} storeName={storeName} />
+          <Logo tone={onDark ? "light" : "ink"} storeName={storeName} logo={logo} />
 
           {/* ---------- Desktop navigation ---------- */}
           <ul className="hidden items-center gap-1 lg:flex">

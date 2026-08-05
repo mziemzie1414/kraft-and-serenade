@@ -1,26 +1,61 @@
+import Image from "next/image";
 import Link from "next/link";
 
+export type LogoData = {
+  logoUrl: string | null;
+  logoWidth: number | null;
+  logoHeight: number | null;
+};
+
 /**
- * Brand mark. The glyph is inline SVG so the logo can never render as a
- * broken image, and it inherits the surrounding text colour.
+ * Brand mark. When a custom logo image has been uploaded in store settings it
+ * replaces the entire built-in SVG + text mark. Otherwise the default inline
+ * SVG glyph and wordmark are rendered.
  *
- * The wordmark is drawn from two spans rather than `storeName` so the ampersand
- * can be tinted; `storeName` is used for the accessible label.
+ * `storeName` is always used for the accessible label regardless of which
+ * visual form is shown.
  */
 export function Logo({
   href = "/",
   tone = "ink",
   className = "",
   storeName,
+  logo,
 }: {
   href?: string;
   tone?: "ink" | "light";
   className?: string;
   storeName: string;
+  logo?: LogoData | null;
 }) {
   const textColor = tone === "light" ? "text-canvas" : "text-ink";
   const markColor = tone === "light" ? "text-blush-300" : "text-moss-700";
 
+  // Custom uploaded logo — replaces everything.
+  if (logo?.logoUrl) {
+    const width = logo.logoWidth ?? 160;
+    const height = logo.logoHeight ?? 48;
+
+    return (
+      <Link
+        href={href}
+        aria-label={`${storeName} — home`}
+        className={`inline-flex items-center ${className}`}
+      >
+        <Image
+          src={logo.logoUrl}
+          alt={storeName}
+          width={width}
+          height={height}
+          className="object-contain"
+          priority
+          unoptimized
+        />
+      </Link>
+    );
+  }
+
+  // Default built-in SVG + text logo.
   return (
     <Link
       href={href}

@@ -81,6 +81,32 @@ export async function saveStore(
       manualPaymentQrUrl = upload.url;
     }
 
+    // Logo upload — same pattern as the QR code.
+    const logoFile = formData.get("logoUrlFile");
+    let logoUrl = String(formData.get("logoUrl") ?? "").trim() || null;
+
+    if (formData.get("logoRemove") !== null) {
+      logoUrl = null;
+    } else if (logoFile instanceof File && logoFile.size > 0) {
+      const upload = await uploadImage(logoFile, "store/logo", 800);
+
+      if ("error" in upload) throw new Error(`Logo: ${upload.error}`);
+
+      logoUrl = upload.url;
+    }
+
+    const rawLogoWidth = String(formData.get("logoWidth") ?? "").trim();
+    const rawLogoHeight = String(formData.get("logoHeight") ?? "").trim();
+    const logoWidth = rawLogoWidth ? Number(rawLogoWidth) : null;
+    const logoHeight = rawLogoHeight ? Number(rawLogoHeight) : null;
+
+    if (logoWidth !== null && (!Number.isFinite(logoWidth) || logoWidth < 20 || logoWidth > 400)) {
+      throw new Error("Logo width must be between 20 and 400 pixels.");
+    }
+    if (logoHeight !== null && (!Number.isFinite(logoHeight) || logoHeight < 16 || logoHeight > 200)) {
+      throw new Error("Logo height must be between 16 and 200 pixels.");
+    }
+
     const store = {
       storeName: requireText(formData, "storeName", "Store name"),
       tagline: requireText(formData, "tagline", "Tagline"),
@@ -94,6 +120,9 @@ export async function saveStore(
         "manualPaymentInstructions",
         "Manual payment instructions",
       ),
+      logoUrl,
+      logoWidth,
+      logoHeight,
     };
 
     await prisma.$transaction([

@@ -796,6 +796,13 @@ model StoreSettings {
   /// Shown alongside the QR code and the order number.
   manualPaymentInstructions String
 
+  /// Custom logo image. Null means the built-in SVG + text logo is used.
+  logoUrl    String?
+  /// Display width in pixels when rendered in the navbar/footer.
+  logoWidth  Int?
+  /// Display height in pixels when rendered in the navbar/footer.
+  logoHeight Int?
+
   businessHours BusinessHour[]
 
   updatedAt DateTime @updatedAt

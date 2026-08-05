@@ -10,7 +10,7 @@ import {
   PinterestIcon,
   TiktokIcon,
 } from "@/components/ui/Icons";
-import { Logo } from "@/components/ui/Logo";
+import { Logo, type LogoData } from "@/components/ui/Logo";
 import { categoryHref, type NavCategory } from "@/lib/nav";
 import type { StoreContent } from "@/lib/store";
 
@@ -37,7 +37,7 @@ const SOCIALS = [
   { label: "Pinterest", href: "/#gallery", Icon: PinterestIcon },
 ];
 
-export function Footer({ categories, store }: { categories: NavCategory[]; store: StoreContent }) {
+export function Footer({ categories, store, logo }: { categories: NavCategory[]; store: StoreContent; logo?: LogoData | null }) {
   const year = new Date().getFullYear();
   // Top six only, so the footer stays scannable rather than listing every one.
   const footerCategories = categories.slice(0, 6);
@@ -48,7 +48,7 @@ export function Footer({ categories, store }: { categories: NavCategory[]; store
         <div className="grid gap-12 lg:grid-cols-12 lg:gap-8">
           {/* Brand + socials */}
           <div className="lg:col-span-4">
-            <Logo tone="light" storeName={store.storeName} />
+            <Logo tone="light" storeName={store.storeName} logo={logo} />
 
             <p className="mt-6 max-w-xs text-sm leading-relaxed text-canvas/60">
               {store.tagline}. A four-person florist studio in Pasig City,

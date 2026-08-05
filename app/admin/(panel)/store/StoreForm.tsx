@@ -54,6 +54,77 @@ export function StoreForm({
         </div>
       </Fieldset>
 
+      <Fieldset
+        title="Logo"
+        description="Upload a custom logo to replace the default text logo in the navbar and footer. Leave empty to keep the built-in one."
+      >
+        <div>
+          <span className={labelClass}>Logo image</span>
+          <input type="hidden" name="logoUrl" value={store.logoUrl ?? ""} />
+          <div className="mt-1.5 flex flex-wrap items-center gap-4">
+            {store.logoUrl ? (
+              <Image
+                src={store.logoUrl}
+                alt="Current logo"
+                width={store.logoWidth ?? 160}
+                height={store.logoHeight ?? 48}
+                className="rounded-lg border border-canvas-deep object-contain p-2"
+                unoptimized
+              />
+            ) : (
+              <span className="flex h-12 w-40 items-center justify-center rounded-lg border border-dashed border-canvas-deep text-xs text-ink-faint">
+                Using default
+              </span>
+            )}
+            <input
+              type="file"
+              name="logoUrlFile"
+              accept="image/jpeg,image/png,image/webp,image/avif,image/svg+xml"
+              aria-label="Upload logo"
+              className="text-sm text-ink-soft file:mr-3 file:rounded-full file:border-0 file:bg-moss-900 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-canvas hover:file:bg-moss-700"
+            />
+            {store.logoUrl ? (
+              <label className="flex items-center gap-2 text-xs text-ink-soft">
+                <input
+                  type="checkbox"
+                  name="logoRemove"
+                  className="h-4 w-4 accent-moss-700"
+                />
+                Remove
+              </label>
+            ) : null}
+          </div>
+          <p className="mt-1.5 text-xs text-ink-faint">
+            Optional. Accepts PNG, JPEG, WebP, AVIF or SVG.
+          </p>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Display width (px)" hint="How wide the logo renders in the navbar.">
+            <input
+              name="logoWidth"
+              type="number"
+              min={20}
+              max={400}
+              defaultValue={store.logoWidth ?? ""}
+              placeholder="e.g. 160"
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Display height (px)" hint="How tall the logo renders in the navbar.">
+            <input
+              name="logoHeight"
+              type="number"
+              min={16}
+              max={200}
+              defaultValue={store.logoHeight ?? ""}
+              placeholder="e.g. 48"
+              className={inputClass}
+            />
+          </Field>
+        </div>
+      </Fieldset>
+
       <Fieldset title="Contact">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Email">
