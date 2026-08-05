@@ -6,6 +6,7 @@ import {
   listProducts,
   toProductCardData,
 } from "@/lib/catalog-queries";
+import { PriceFilter } from "./PriceFilter";
 
 export const metadata: Metadata = {
   title: "All bouquets",
@@ -13,15 +14,35 @@ export const metadata: Metadata = {
     "Every hand-tied bouquet we make, from graduation and birthday arrangements to bridal florals and money bouquets. Same-day delivery across Metro Manila.",
 };
 
+/** Parse a price range string like "501-1000" or "2001-" into min/max. */
+function parsePriceRange(raw: string | undefined): { min?: number; max?: number } {
+  if (!raw) return {};
+  const [minStr, maxStr] = raw.split("-");
+  const min = minStr ? Number(minStr) : undefined;
+  const max = maxStr ? Number(maxStr) : undefined;
+  if (min !== undefined && isNaN(min)) return {};
+  if (max !== undefined && isNaN(max)) return {};
+  return { min: min || undefined, max: max || undefined };
+}
+
 export default async function ProductsPage({ searchParams }: PageProps<"/products">) {
-  const { category: categoryParam } = await searchParams;
+  const { category: categoryParam, price: priceParam } = await searchParams;
   const selectedSlug = typeof categoryParam === "string" ? categoryParam : undefined;
+  const priceRaw = typeof priceParam === "string" ? priceParam : undefined;
+  const { min: priceMin, max: priceMax } = parsePriceRange(priceRaw);
 
   const categories = await listCategories();
   const selected = categories.find((category) => category.slug === selectedSlug);
-  const products = await listProducts(
+  const allProducts = await listProducts(
     selected ? { categoryId: selected.id } : undefined,
   );
+
+  // Apply price filter in memory (product list is typically small).
+  const products = allProducts.filter((product) => {
+    if (priceMin !== undefined && product.price < priceMin) return false;
+    if (priceMax !== undefined && product.price > priceMax) return false;
+    return true;
+  });
 
   const total = categories.reduce(
     (sum, category) => sum + category._count.products,
@@ -53,45 +74,51 @@ export default async function ProductsPage({ searchParams }: PageProps<"/product
 
       <section className="border-b border-canvas-deep/60 bg-canvas-alt py-6">
         <nav aria-label="Filter by category" className="container-page">
-          <ul className="flex flex-wrap gap-2">
-            <li>
-              <Link
-                href="/products"
-                aria-current={selected ? undefined : "page"}
-                className={`inline-block rounded-full border px-4 py-2 text-sm font-medium transition-colors duration-300 ${
-                  selected
-                    ? "border-canvas-deep bg-canvas text-ink-soft hover:border-moss-400 hover:text-ink"
-                    : "border-moss-900 bg-moss-900 text-canvas"
-                }`}
-              >
-                All{" "}
-                <span className="text-xs opacity-70">{total}</span>
-              </Link>
-            </li>
+          <div className="flex flex-wrap items-center gap-4">
+            <ul className="flex flex-wrap gap-2">
+              <li>
+                <Link
+                  href="/products"
+                  aria-current={selected ? undefined : "page"}
+                  className={`inline-block rounded-full border px-4 py-2 text-sm font-medium transition-colors duration-300 ${
+                    selected
+                      ? "border-canvas-deep bg-canvas text-ink-soft hover:border-moss-400 hover:text-ink"
+                      : "border-moss-900 bg-moss-900 text-canvas"
+                  }`}
+                >
+                  All{" "}
+                  <span className="text-xs opacity-70">{total}</span>
+                </Link>
+              </li>
 
-            {categories.map((category) => {
-              const active = selected?.id === category.id;
+              {categories.map((category) => {
+                const active = selected?.id === category.id;
 
-              return (
-                <li key={category.id}>
-                  <Link
-                    href={`/products?category=${category.slug}`}
-                    aria-current={active ? "page" : undefined}
-                    className={`inline-block rounded-full border px-4 py-2 text-sm font-medium transition-colors duration-300 ${
-                      active
-                        ? "border-moss-900 bg-moss-900 text-canvas"
-                        : "border-canvas-deep bg-canvas text-ink-soft hover:border-moss-400 hover:text-ink"
-                    }`}
-                  >
-                    {category.shortName}{" "}
-                    <span className="text-xs opacity-70">
-                      {category._count.products}
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+                return (
+                  <li key={category.id}>
+                    <Link
+                      href={`/products?category=${category.slug}`}
+                      aria-current={active ? "page" : undefined}
+                      className={`inline-block rounded-full border px-4 py-2 text-sm font-medium transition-colors duration-300 ${
+                        active
+                          ? "border-moss-900 bg-moss-900 text-canvas"
+                          : "border-canvas-deep bg-canvas text-ink-soft hover:border-moss-400 hover:text-ink"
+                      }`}
+                    >
+                      {category.shortName}{" "}
+                      <span className="text-xs opacity-70">
+                        {category._count.products}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div className="ml-auto">
+              <PriceFilter />
+            </div>
+          </div>
         </nav>
       </section>
 

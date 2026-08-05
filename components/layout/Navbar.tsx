@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import {
   AccountDrawerLinks,
   AccountMenu,
@@ -11,6 +11,28 @@ import { useCart } from "@/components/cart/useCart";
 import { ChevronDownIcon, CloseIcon, MenuIcon, SearchIcon, BagIcon } from "@/components/ui/Icons";
 import { Logo } from "@/components/ui/Logo";
 import { categoryHref, type NavCategory } from "@/lib/nav";
+
+/* ── Search result types ─────────────────────────────────────────────── */
+
+type SearchProduct = {
+  slug: string;
+  name: string;
+  price: number;
+  imageUrl: string;
+  category: { name: string };
+};
+
+type SearchCategory = {
+  slug: string;
+  name: string;
+  imageUrl: string;
+  _count: { products: number };
+};
+
+type SearchResults = {
+  products: SearchProduct[];
+  categories: SearchCategory[];
+};
 
 type NavLink = { label: string; href: string };
 
@@ -40,9 +62,15 @@ export function Navbar({
   const [desktopDropdownOpen, setDesktopDropdownOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileProductsOpen, setMobileProductsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResults>({ products: [], categories: [] });
+  const [searchLoading, setSearchLoading] = useState(false);
 
   const productsItemRef = useRef<HTMLLIElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* Swap the header from transparent (over the hero) to solid once scrolled. */
   useEffect(() => {
@@ -68,10 +96,52 @@ export function Navbar({
       if (event.key !== "Escape") return;
       setDesktopDropdownOpen(false);
       setMobileOpen(false);
+      setSearchOpen(false);
+      setSearchQuery("");
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  /* Focus the search input when the overlay opens. */
+  useEffect(() => {
+    if (searchOpen) {
+      searchInputRef.current?.focus();
+    }
+  }, [searchOpen]);
+
+  /* Debounced search. */
+  const performSearch = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setSearchResults({ products: [], categories: [] });
+      setSearchLoading(false);
+      return;
+    }
+    setSearchLoading(true);
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+      if (res.ok) {
+        const data: SearchResults = await res.json();
+        setSearchResults(data);
+      }
+    } catch {
+      // Silently fail — the user will just see no results.
+    } finally {
+      setSearchLoading(false);
+    }
+  }, []);
+
+  function handleSearchChange(value: string) {
+    setSearchQuery(value);
+    if (searchDebounce.current) clearTimeout(searchDebounce.current);
+    searchDebounce.current = setTimeout(() => performSearch(value), 300);
+  }
+
+  function closeSearch() {
+    setSearchOpen(false);
+    setSearchQuery("");
+    setSearchResults({ products: [], categories: [] });
+  }
 
   /* Close the desktop dropdown when focus or a click lands outside of it. */
   useEffect(() => {
@@ -263,6 +333,7 @@ export function Navbar({
             <button
               type="button"
               aria-label="Search bouquets"
+              onClick={() => setSearchOpen(true)}
               className={`hidden h-10 w-10 items-center justify-center rounded-full transition-colors duration-300 sm:inline-flex ${linkColor}`}
             >
               <SearchIcon className="h-[1.15rem] w-[1.15rem]" />
@@ -390,6 +461,144 @@ export function Navbar({
           </Link>
         </div>
       </div>
+
+      {/* ---------- Search overlay ---------- */}
+      {searchOpen && (
+        <div className="fixed inset-0 z-[60] flex flex-col">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-ink/40 backdrop-blur-sm"
+            onClick={closeSearch}
+            aria-hidden
+          />
+
+          {/* Search panel */}
+          <div className="relative mx-auto mt-20 w-full max-w-xl px-4">
+            <div className="overflow-hidden rounded-2xl border border-canvas-deep bg-canvas shadow-lift">
+              {/* Input area */}
+              <div className="flex items-center gap-3 border-b border-canvas-deep px-4 py-3">
+                <SearchIcon className="h-5 w-5 shrink-0 text-ink-faint" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  placeholder="Search products and categories..."
+                  className="flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
+                />
+                <button
+                  type="button"
+                  onClick={closeSearch}
+                  aria-label="Close search"
+                  className="rounded-full p-1 text-ink-soft transition-colors hover:text-ink"
+                >
+                  <CloseIcon className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Results */}
+              <div className="max-h-[60vh] overflow-y-auto">
+                {searchLoading && (
+                  <p className="px-4 py-6 text-center text-sm text-ink-faint">
+                    Searching...
+                  </p>
+                )}
+
+                {!searchLoading && searchQuery.length >= 2 &&
+                  searchResults.products.length === 0 &&
+                  searchResults.categories.length === 0 && (
+                    <p className="px-4 py-6 text-center text-sm text-ink-faint">
+                      No results found for &ldquo;{searchQuery}&rdquo;
+                    </p>
+                  )}
+
+                {!searchLoading && searchResults.categories.length > 0 && (
+                  <div className="border-b border-canvas-deep px-4 py-3">
+                    <p className="mb-2 text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-ink-faint">
+                      Categories
+                    </p>
+                    <ul className="space-y-1">
+                      {searchResults.categories.map((cat) => (
+                        <li key={cat.slug}>
+                          <Link
+                            href={`/products?category=${cat.slug}`}
+                            onClick={closeSearch}
+                            className="flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-moss-50"
+                          >
+                            <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-canvas-deep">
+                              <Image
+                                src={cat.imageUrl}
+                                alt=""
+                                fill
+                                sizes="36px"
+                                className="object-cover"
+                              />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium text-ink">
+                                {cat.name}
+                              </span>
+                              <span className="text-xs text-ink-faint">
+                                {cat._count.products} {cat._count.products === 1 ? "product" : "products"}
+                              </span>
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {!searchLoading && searchResults.products.length > 0 && (
+                  <div className="px-4 py-3">
+                    <p className="mb-2 text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-ink-faint">
+                      Products
+                    </p>
+                    <ul className="space-y-1">
+                      {searchResults.products.map((product) => (
+                        <li key={product.slug}>
+                          <Link
+                            href={`/products/${product.slug}`}
+                            onClick={closeSearch}
+                            className="flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-moss-50"
+                          >
+                            <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-canvas-deep">
+                              <Image
+                                src={product.imageUrl}
+                                alt=""
+                                fill
+                                sizes="36px"
+                                className="object-cover"
+                              />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium text-ink">
+                                {product.name}
+                              </span>
+                              <span className="text-xs text-ink-faint">
+                                {product.category.name}
+                              </span>
+                            </span>
+                            <span className="text-sm font-medium text-moss-700">
+                              ₱{product.price.toLocaleString()}
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {!searchLoading && searchQuery.length < 2 && (
+                  <p className="px-4 py-6 text-center text-sm text-ink-faint">
+                    Type at least 2 characters to search
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
