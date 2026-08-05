@@ -1,33 +1,15 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useActionState, useId } from "react";
+import { subscribe, type SubscribeState } from "@/app/(site)/newsletter-actions";
 import { ArrowRightIcon, CheckIcon, MailIcon } from "@/components/ui/Icons";
 
-type Status = "idle" | "error" | "success";
+const INITIAL: SubscribeState = { status: "idle" };
 
 export function Newsletter() {
   const inputId = useId();
   const messageId = useId();
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<Status>("idle");
-
-  /**
-   * There is no backend in this build, so the form validates locally and shows
-   * a confirmation. Nothing is transmitted anywhere.
-   */
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmed = email.trim();
-    const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmed);
-
-    if (!looksLikeEmail) {
-      setStatus("error");
-      return;
-    }
-
-    setStatus("success");
-    setEmail("");
-  };
+  const [state, formAction, pending] = useActionState(subscribe, INITIAL);
 
   return (
     <section
@@ -51,13 +33,15 @@ export function Newsletter() {
             One email a week, and it is mostly flowers
           </h2>
 
-          <p className="mt-4 text-base leading-relaxed text-ink-soft text-pretty">
+          <p className="mt-4 text-base leading-relaxed text-pretty text-ink-soft">
             What came in from the market, what we are building, and first access
             to seasonal stems like peonies and imported tulips. Unsubscribe in
             one click.
           </p>
 
-          <form onSubmit={handleSubmit} noValidate className="mt-9">
+          {/* React clears an uncontrolled form once the action resolves, so the
+              field empties itself on a successful subscribe. */}
+          <form action={formAction} noValidate className="mt-9">
             <div className="flex flex-col gap-3 sm:flex-row">
               <label htmlFor={inputId} className="sr-only">
                 Email address
@@ -66,41 +50,36 @@ export function Newsletter() {
                 id={inputId}
                 type="email"
                 name="email"
-                value={email}
-                onChange={(event) => {
-                  setEmail(event.target.value);
-                  if (status !== "idle") setStatus("idle");
-                }}
                 placeholder="you@example.com"
                 autoComplete="email"
-                aria-describedby={status === "idle" ? undefined : messageId}
-                aria-invalid={status === "error"}
+                required
+                aria-describedby={state.status === "idle" ? undefined : messageId}
+                aria-invalid={state.status === "error"}
                 className={`h-14 flex-1 rounded-full border bg-canvas px-6 text-sm text-ink placeholder:text-ink-faint focus:outline-none ${
-                  status === "error"
+                  state.status === "error"
                     ? "border-blush-500"
                     : "border-canvas-deep focus:border-moss-400"
                 }`}
               />
               <button
                 type="submit"
-                className="group inline-flex h-14 shrink-0 items-center justify-center gap-2 rounded-full bg-moss-700 px-8 text-sm font-semibold text-canvas transition-colors duration-300 hover:bg-moss-900"
+                disabled={pending}
+                className="group inline-flex h-14 shrink-0 items-center justify-center gap-2 rounded-full bg-moss-700 px-8 text-sm font-semibold text-canvas transition-colors duration-300 hover:bg-moss-900 disabled:opacity-70"
               >
-                Subscribe
+                {pending ? "Adding…" : "Subscribe"}
                 <ArrowRightIcon className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
               </button>
             </div>
 
             {/* Status messages are announced politely rather than interrupting. */}
             <div id={messageId} aria-live="polite" className="min-h-6 pt-3">
-              {status === "error" ? (
-                <p className="text-sm text-blush-600">
-                  That email does not look right. Mind checking it?
-                </p>
+              {state.status === "error" ? (
+                <p className="text-sm text-blush-600">{state.message}</p>
               ) : null}
-              {status === "success" ? (
+              {state.status === "success" ? (
                 <p className="inline-flex items-center gap-2 text-sm font-medium text-moss-700">
                   <CheckIcon className="h-4 w-4" />
-                  You are on the list. Look out for Friday&apos;s email.
+                  {state.message}
                 </p>
               ) : null}
             </div>

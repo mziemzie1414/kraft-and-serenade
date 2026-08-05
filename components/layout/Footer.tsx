@@ -25,7 +25,7 @@ const COMPANY_LINKS = [
   { label: "About the studio", href: "/#about" },
   { label: "How it works", href: "/#how-it-works" },
   { label: "Customer reviews", href: "/#reviews" },
-  { label: "FAQs", href: "/#faqs" },
+  { label: "FAQs", href: "/faqs" },
   { label: "Contact", href: "/#contact" },
 ];
 

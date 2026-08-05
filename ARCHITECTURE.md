@@ -69,6 +69,8 @@ app/
     page.tsx              landing page
     products/             catalogue, filtered by ?category=<slug>
     products/[slug]/      product detail
+    faqs/                 every question, not just the home page selection
+    newsletter-actions.ts the only Server Action on the public site
   admin/                  editing UI, force-dynamic, noindex
     theme/                colour palette
     hero/                 hero section
@@ -77,6 +79,7 @@ app/
     reviews/              curated customer quotes
     gallery/              studio photo grid
     promo/                seasonal banner, with an on/off switch
+    faqs/                 questions for both the home block and /faqs
     categories/           list, new, [id]
     products/             list, new, [id]
     occasions/            list, new, [id]
@@ -93,9 +96,9 @@ two can never disagree about what the shop contains.
 
 ## Data model
 
-`prisma/schema.prisma`. Seven migrations so far: `hero_section`, `theme`,
+`prisma/schema.prisma`. Eight migrations so far: `hero_section`, `theme`,
 `catalog`, `best_seller_rank`, `occasion`, `why_choose_us_and_how_it_works`,
-`reviews_gallery_promo`.
+`reviews_gallery_promo`, `faq_and_newsletter`.
 
 **Singletons.** Each landing-page section holds exactly one row, addressed by a
 fixed id. A known id keeps reads and the admin upsert trivial, with no "which row
@@ -110,8 +113,17 @@ is live?" question to answer.
 | `ReviewsSection`       | `reviews`        | `Review`                              |
 | `GallerySection`       | `gallery`        | `GalleryImage`                        |
 | `PromoBannerSection`   | `promo`          | —                                     |
+| `FaqSection`           | `faqs`           | `Faq`                                 |
 
 Children cascade on delete.
+
+`FaqSection` feeds two places at once: the home page block and the `/faqs` page.
+`Faq.showOnHome` decides which questions appear on the home page, while `/faqs`
+always lists everything, so shortening the front page never hides an answer from
+the site.
+
+**Standalone.** `NewsletterSubscriber` belongs to no section. It is a capture
+table for the newsletter form: unique, lowercased email plus a timestamp.
 
 Child lists are replaced wholesale on save — delete all, then re-create from the
 submitted rows inside one transaction — so `position` is always a dense
@@ -173,7 +185,8 @@ The pure modules hold types, defaults, validation, and small helpers. If you add
 a **runtime value** an admin form needs, it belongs on the left.
 
 The per-section modules — `lib/why-choose-us.ts`, `lib/how-it-works.ts`,
-`lib/reviews.ts`, `lib/gallery.ts`, `lib/promo.ts` — are not split, because their
+`lib/reviews.ts`, `lib/gallery.ts`, `lib/promo.ts`, `lib/faq.ts` — are not split,
+because their
 forms need only types from them, and `import type` is erased at compile time so
 Prisma never reaches the bundle. Split one the moment a form needs a real value
 out of it.
@@ -226,6 +239,7 @@ Mutations call `revalidatePath`, which matters because `/` is prerendered:
 | Reviews        | `revalidatePath("/")`                                      |
 | Gallery        | `revalidatePath("/")`                                      |
 | Promo banner   | `revalidatePath("/")`                                      |
+| FAQs           | `revalidatePath("/")` plus `revalidatePath("/faqs")`       |
 
 ## Images
 
@@ -243,20 +257,26 @@ Supabase URLs work, since `next/image` handles either.
 
 These sections read `lib/data.ts` and have no admin page yet:
 
-| Section      | Constant     |
-| ------------ | ------------ |
-| `FaqSection` | `FAQS`       |
-| `Newsletter` | in-component |
+`Newsletter` is the last section with its copy inline — the heading, blurb and
+small print are in the component. Its form does write to the database.
 
 Also still in `lib/data.ts`: `BRAND` (used by the footer, logo, and metadata),
 `BUSINESS_HOURS` (the footer), and `formatPrice`, which is a shared helper rather
-than content and can stay.
+than content and can stay. The `CATEGORIES`, `FEATURED_PRODUCTS`, `BEST_SELLERS`,
+`OCCASIONS`, `REVIEWS`, `GALLERY_IMAGES`, `FAQS`, `WHY_CHOOSE_US` and
+`HOW_IT_WORKS` constants are now only read by `prisma/seed.ts`.
 
 ## Known gaps
 
 - **`/admin` has no authentication.** Anyone who can reach the URL can rewrite
   the site, and the Server Actions are reachable by direct POST regardless of the
   UI. This needs solving before a public deploy.
+- **The newsletter only stores addresses.** No sending, no double opt-in, no
+  unsubscribe, and no admin screen — deliberately, until someone decides what it
+  is for. Read the rows with `npx prisma studio` or the Supabase table editor.
+  Before it is used for anything, it needs confirmed opt-in and an unsubscribe
+  path, and the subscribe action needs rate limiting: it is the one public
+  endpoint that writes to the database, so today it can be flooded.
 - **Replaced images are not deleted from Storage.** Swapping a photo uploads the
   new file and repoints the row, leaving the old object behind.
 - **Product descriptions are placeholders.** `lib/data.ts` never had any, so the

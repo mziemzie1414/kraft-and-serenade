@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { BEST_SELLERS, CATEGORIES, FEATURED_PRODUCTS, OCCASIONS } from "../lib/data";
 import { HERO_DEFAULTS, HERO_ID } from "../lib/hero";
+import { FAQ_DEFAULTS, FAQ_ID } from "../lib/faq";
 import { GALLERY_DEFAULTS, GALLERY_ID } from "../lib/gallery";
 import { HOW_IT_WORKS_DEFAULTS, HOW_IT_WORKS_ID } from "../lib/how-it-works";
 import { prisma } from "../lib/prisma";
@@ -135,6 +136,27 @@ async function seedMoreSections() {
     where: { id: PROMO_ID },
     create: { id: PROMO_ID, ...PROMO_DEFAULTS },
     update: PROMO_DEFAULTS,
+  });
+
+  const { faqs, ...faqSection } = FAQ_DEFAULTS;
+
+  await prisma.faqSection.upsert({
+    where: { id: FAQ_ID },
+    create: { id: FAQ_ID, ...faqSection },
+    update: faqSection,
+  });
+
+  await prisma.faq.deleteMany({ where: { sectionId: FAQ_ID } });
+  await prisma.faq.createMany({
+    // The ids in FAQ_DEFAULTS exist only for the no-database fallback, so the
+    // fields are copied across explicitly and the rows get real uuids.
+    data: faqs.map((faq, index) => ({
+      question: faq.question,
+      answer: faq.answer,
+      showOnHome: faq.showOnHome,
+      position: index,
+      sectionId: FAQ_ID,
+    })),
   });
 }
 
@@ -308,7 +330,7 @@ async function main() {
 
   console.log(
     "Seeded theme, hero, why-choose-us, how-it-works, reviews, gallery, promo, " +
-      `${counts.categories} categories, ${counts.products} products and ` +
+      `faqs, ${counts.categories} categories, ${counts.products} products and ` +
       `${counts.occasions} occasions.`,
   );
 }

@@ -410,6 +410,64 @@ model PromoBannerSection {
   @@map("promo_banner_section")
 }
 
+/// FAQ copy for both the landing section and the dedicated /faqs page, so one
+/// admin panel covers both. One row, addressed by a fixed id.
+model FaqSection {
+  id String @id
+
+  /// Landing page section.
+  eyebrow String
+  title   String
+  lede    String
+
+  /// The "ask us something else" button, shown in both places.
+  ctaLabel String
+  ctaHref  String
+
+  /// Header of the dedicated /faqs page.
+  pageTitle String
+  pageLede  String
+
+  faqs Faq[]
+
+  updatedAt DateTime @updatedAt
+
+  @@map("faq_section")
+}
+
+/// A single question and answer.
+model Faq {
+  id       String @id @default(uuid())
+  question String
+  answer   String
+
+  /// The landing section shows only these; /faqs always shows everything. Lets
+  /// the home page stay short without hiding an answer from the site.
+  showOnHome Boolean @default(true)
+
+  position Int
+
+  sectionId String
+  section   FaqSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@index([sectionId, position])
+  @@map("faq")
+}
+
+/// An email captured by the newsletter form.
+///
+/// Nothing consumes these yet: no sending, no confirmation, no unsubscribe. It
+/// is a capture table so addresses are not thrown away in the meantime.
+model NewsletterSubscriber {
+  id String @id @default(uuid())
+  /// Stored lowercased and trimmed, and unique so re-subscribing is a no-op.
+  email String @unique
+
+  createdAt DateTime @default(now())
+
+  @@map("newsletter_subscriber")
+}
+
 /// A single item in the trust bar pinned to the bottom of the Hero.
 model HeroTrustPoint {
   id    String @id @default(uuid())

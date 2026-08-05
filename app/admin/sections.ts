@@ -70,4 +70,10 @@ export const ADMIN_SECTIONS = [
     description:
       "The seasonal offer: copy, background photo, buttons and discount code. Can be switched off.",
   },
+  {
+    name: "FAQs",
+    href: "/admin/faqs",
+    description:
+      "Questions and answers for both the home page block and the FAQ page.",
+  },
 ] as const;
