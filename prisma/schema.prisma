@@ -1,0 +1,73 @@
+// Prisma schema for the Kraft & Serenade storefront.
+//
+// The schema is built up section by section as the landing page moves off
+// hard-coded content. Right now it only covers the Hero section.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Everything the Hero section renders. There is only ever one row; it is
+/// addressed by the fixed id `SINGLETON_ID` in lib/hero.ts.
+model HeroSection {
+  id String @id
+
+  /// Small pill above the headline.
+  eyebrow String
+
+  /// The headline is split so the second half can be italicised separately.
+  headingLead    String
+  headingAccent  String
+  description    String
+
+  primaryCtaLabel   String
+  primaryCtaHref    String
+  secondaryCtaLabel String
+  secondaryCtaHref  String
+
+  /// Full-bleed background photograph.
+  backgroundImageUrl String
+  backgroundImageAlt String
+
+  /// Social proof block. Avatars are ordered as stored.
+  ratingValue      Float
+  ratingCaption    String
+  reviewAvatarUrls String[]
+
+  /// Floating accent card, shown on xl screens only.
+  accentImageUrl String
+  accentTitle    String
+  accentCaption  String
+
+  trustPoints HeroTrustPoint[]
+
+  updatedAt DateTime @updatedAt
+
+  @@map("hero_section")
+}
+
+/// A single item in the trust bar pinned to the bottom of the Hero.
+model HeroTrustPoint {
+  id    String @id @default(uuid())
+  label String
+
+  /// Key resolved to a glyph in components/sections/Hero.tsx. One of
+  /// `leaf`, `truck`, `sparkle`, `peso`.
+  icon String
+
+  /// Hidden below the `lg` breakpoint so the bar does not wrap on mobile.
+  desktopOnly Boolean @default(false)
+
+  position Int
+
+  heroSectionId String
+  heroSection   HeroSection @relation(fields: [heroSectionId], references: [id], onDelete: Cascade)
+
+  @@index([heroSectionId, position])
+  @@map("hero_trust_point")
+}

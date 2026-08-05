@@ -2,22 +2,35 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRightIcon, LeafIcon, TruckIcon, SparkleIcon } from "@/components/ui/Icons";
 import { Rating } from "@/components/ui/Rating";
+import { getHeroContent } from "@/lib/hero-queries";
 
-const TRUST_POINTS = [
-  { icon: LeafIcon, label: "Market-fresh daily" },
-  { icon: TruckIcon, label: "Same-day in Metro Manila" },
-  { icon: SparkleIcon, label: "Hand-tied to order" },
-];
+/** Maps the `icon` key stored on a trust point to the glyph it renders. */
+function TrustPointIcon({ icon }: { icon: string }) {
+  switch (icon) {
+    case "leaf":
+      return <LeafIcon className="h-4 w-4 text-blush-300" />;
+    case "truck":
+      return <TruckIcon className="h-4 w-4 text-blush-300" />;
+    case "sparkle":
+      return <SparkleIcon className="h-4 w-4 text-blush-300" />;
+    case "peso":
+      return <span className="text-blush-300">₱</span>;
+    default:
+      return null;
+  }
+}
 
-export function Hero() {
+export async function Hero() {
+  const hero = await getHeroContent();
+
   return (
     <section id="top" className="relative flex min-h-dvh flex-col justify-end overflow-hidden">
       {/* Background image. `priority` because this is the largest element
           above the fold and drives the Largest Contentful Paint. */}
       <div className="absolute inset-0 -z-10">
         <Image
-          src="/images/hero/hero-bouquet.jpg"
-          alt="Florist holding a large hand-tied bouquet of roses, ranunculus and eucalyptus"
+          src={hero.backgroundImageUrl}
+          alt={hero.backgroundImageAlt}
           fill
           priority
           sizes="100vw"
@@ -32,33 +45,31 @@ export function Hero() {
         <div className="max-w-3xl animate-fade-up">
           <p className="mb-6 inline-flex items-center gap-2.5 rounded-full border border-canvas/25 bg-canvas/10 px-4 py-1.5 text-xs font-medium tracking-wide text-canvas/90 backdrop-blur-md">
             <span className="h-1.5 w-1.5 rounded-full bg-blush-300" aria-hidden />
-            Cut at 4am. On your doorstep by lunch.
+            {hero.eyebrow}
           </p>
 
           <h1 className="font-display text-4xl leading-[1.05] font-medium tracking-tight text-balance text-canvas sm:text-5xl lg:text-7xl">
-            Flowers that say it
-            <span className="block italic text-blush-300">without saying much</span>
+            {hero.headingLead}
+            <span className="block italic text-blush-300">{hero.headingAccent}</span>
           </h1>
 
           <p className="mt-6 max-w-xl text-base leading-relaxed text-pretty text-canvas/75 sm:text-lg">
-            A small Pasig studio making hand-tied bouquets for graduations,
-            birthdays, weddings and ordinary Tuesdays. Ten designs on the shelf,
-            or tell us the colours and we will build it.
+            {hero.description}
           </p>
 
           <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
-              href="#featured"
+              href={hero.primaryCtaHref}
               className="group inline-flex items-center justify-center gap-2 rounded-full bg-canvas px-7 py-4 text-sm font-semibold text-ink transition-all duration-300 hover:bg-blush-100 hover:shadow-lift"
             >
-              Shop the bouquets
+              {hero.primaryCtaLabel}
               <ArrowRightIcon className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
             </Link>
             <Link
-              href="#shop-by-category"
+              href={hero.secondaryCtaHref}
               className="inline-flex items-center justify-center rounded-full border border-canvas/35 px-7 py-4 text-sm font-semibold text-canvas transition-colors duration-300 hover:border-canvas hover:bg-canvas/10"
             >
-              Browse categories
+              {hero.secondaryCtaLabel}
             </Link>
           </div>
 
@@ -66,13 +77,13 @@ export function Hero() {
           <div className="mt-10 flex flex-wrap items-center gap-x-5 gap-y-3">
             <div className="flex items-center gap-3 rounded-full border border-canvas/20 bg-canvas/10 py-2 pr-5 pl-2 backdrop-blur-md">
               <div className="flex -space-x-2.5">
-                {["01", "02", "03", "04"].map((n) => (
+                {hero.reviewAvatarUrls.map((src) => (
                   <span
-                    key={n}
+                    key={src}
                     className="relative h-8 w-8 overflow-hidden rounded-full ring-2 ring-canvas/80"
                   >
                     <Image
-                      src={`/images/reviews/avatar-${n}.jpg`}
+                      src={src}
                       alt=""
                       fill
                       sizes="32px"
@@ -82,9 +93,9 @@ export function Hero() {
                 ))}
               </div>
               <div className="text-canvas">
-                <Rating value={4.9} size="sm" showValue={false} />
+                <Rating value={hero.ratingValue} size="sm" showValue={false} />
                 <p className="mt-0.5 text-xs text-canvas/70">
-                  4.9 from 1,240+ local orders
+                  {hero.ratingCaption}
                 </p>
               </div>
             </div>
@@ -99,7 +110,7 @@ export function Hero() {
         >
           <div className="relative aspect-4/5 overflow-hidden rounded-xl">
             <Image
-              src="/images/hero/hero-accent.jpg"
+              src={hero.accentImageUrl}
               alt=""
               fill
               sizes="224px"
@@ -108,9 +119,9 @@ export function Hero() {
           </div>
           <div className="px-1.5 pt-3 pb-1.5">
             <p className="font-display text-sm font-medium text-ink">
-              Blush Peony Serenade
+              {hero.accentTitle}
             </p>
-            <p className="mt-0.5 text-xs text-ink-faint">Most gifted this month</p>
+            <p className="mt-0.5 text-xs text-ink-faint">{hero.accentCaption}</p>
           </div>
         </div>
       </div>
@@ -118,19 +129,19 @@ export function Hero() {
       {/* Trust bar pinned to the bottom of the viewport */}
       <div className="relative border-t border-canvas/15 bg-moss-900/45 backdrop-blur-md">
         <ul className="container-page flex flex-wrap items-center justify-center gap-x-8 gap-y-2 py-4 sm:justify-between">
-          {TRUST_POINTS.map(({ icon: Icon, label }) => (
+          {hero.trustPoints.map(({ icon, label, desktopOnly }) => (
             <li
               key={label}
-              className="flex items-center gap-2.5 text-xs font-medium tracking-wide text-canvas/80 sm:text-sm"
+              className={
+                desktopOnly
+                  ? "hidden items-center gap-2.5 text-sm font-medium tracking-wide text-canvas/80 lg:flex"
+                  : "flex items-center gap-2.5 text-xs font-medium tracking-wide text-canvas/80 sm:text-sm"
+              }
             >
-              <Icon className="h-4 w-4 text-blush-300" />
+              <TrustPointIcon icon={icon} />
               {label}
             </li>
           ))}
-          <li className="hidden items-center gap-2.5 text-sm font-medium tracking-wide text-canvas/80 lg:flex">
-            <span className="text-blush-300">₱</span>
-            Free delivery over ₱3,500
-          </li>
         </ul>
       </div>
     </section>
