@@ -931,3 +931,42 @@ model HeroTrustPoint {
   @@index([heroSectionId, position])
   @@map("hero_trust_point")
 }
+
+/// The "About us" page content. One row, addressed by a fixed id.
+model AboutSection {
+  id String @id
+
+  eyebrow String
+  title   String
+  body    String
+
+  imageUrl String
+  imageAlt String
+
+  updatedAt DateTime @updatedAt
+
+  @@map("about_section")
+}
+
+/// The "Contact us" page content. One row, addressed by a fixed id.
+///
+/// The actual contact email comes from env (`CONTACT_TO_EMAIL`), not this table.
+/// This table holds only the copy around the form.
+model ContactSection {
+  id String @id
+
+  eyebrow String
+  title   String
+  body    String
+
+  /// Address shown on the contact page.
+  address String
+  phone   String
+
+  /// Shown on the page as well, but actual form submissions go to env.
+  mapEmbedUrl String?
+
+  updatedAt DateTime @updatedAt
+
+  @@map("contact_section")
+}

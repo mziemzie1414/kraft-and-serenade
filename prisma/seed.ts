@@ -1,5 +1,7 @@
 import "dotenv/config";
 import { BEST_SELLERS, CATEGORIES, FEATURED_PRODUCTS, OCCASIONS } from "../lib/data";
+import { ABOUT_DEFAULTS, ABOUT_ID } from "../lib/about";
+import { CONTACT_DEFAULTS, CONTACT_ID } from "../lib/contact";
 import { HERO_DEFAULTS, HERO_ID } from "../lib/hero";
 import { hashPassword } from "../lib/auth";
 import { FAQ_DEFAULTS, FAQ_ID } from "../lib/faq";
@@ -385,6 +387,21 @@ async function seedCatalog() {
   };
 }
 
+/** About and Contact page singletons. */
+async function seedAboutAndContact() {
+  await prisma.aboutSection.upsert({
+    where: { id: ABOUT_ID },
+    create: { id: ABOUT_ID, ...ABOUT_DEFAULTS },
+    update: ABOUT_DEFAULTS,
+  });
+
+  await prisma.contactSection.upsert({
+    where: { id: CONTACT_ID },
+    create: { id: CONTACT_ID, ...CONTACT_DEFAULTS },
+    update: CONTACT_DEFAULTS,
+  });
+}
+
 /**
  * Seeds the content the site shipped with, so nothing changes visually after
  * moving off hard-coded data. Safe to re-run.
@@ -395,11 +412,12 @@ async function main() {
   await seedSiteContent();
   await seedSections();
   await seedMoreSections();
+  await seedAboutAndContact();
   const counts = await seedCatalog();
 
   console.log(
     "Seeded store, theme, hero, why-choose-us, how-it-works, reviews, gallery, " +
-      `promo, faqs, ${counts.categories} categories, ${counts.products} products ` +
+      `promo, faqs, about, contact, ${counts.categories} categories, ${counts.products} products ` +
       `and ${counts.occasions} occasions.`,
   );
 }

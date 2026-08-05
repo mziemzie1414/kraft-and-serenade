@@ -109,4 +109,16 @@ export const ADMIN_SECTIONS = [
     description:
       "Questions and answers for both the home page block and the FAQ page.",
   },
+  {
+    name: "About page",
+    href: "/admin/about",
+    description:
+      "The studio story, headline and photograph shown on the /about page.",
+  },
+  {
+    name: "Contact page",
+    href: "/admin/contact",
+    description:
+      "Header copy, phone, address and optional map embed for the /contact page.",
+  },
 ] as const;
