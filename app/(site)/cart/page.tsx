@@ -14,9 +14,12 @@ export default async function CartPage() {
   /**
    * The exact fee needs an address, which is collected at checkout. Until then
    * say what it will be based on rather than showing a number that might change.
+   *
+   * `null` when the shop does not charge for delivery, and the row is then left
+   * out entirely rather than reading "Free" — see the note in CheckoutForm.
    */
   const shippingNote = !shipping.isEnabled
-    ? "Free"
+    ? null
     : shipping.rates.length > 0
       ? "Calculated at checkout"
       : `${formatPrice(shipping.flatRate)}, added at checkout`;

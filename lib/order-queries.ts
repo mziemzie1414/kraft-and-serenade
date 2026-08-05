@@ -156,6 +156,8 @@ export async function listOrders(filters: OrderListFilters = {}) {
         total: true,
         createdAt: true,
         paidAt: true,
+        deliveryDate: true,
+        rushFee: true,
         customerName: true,
         customerEmail: true,
         customerPhone: true,

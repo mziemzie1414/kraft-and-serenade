@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatPrice } from "@/lib/data";
+import { formatDeliveryDate, toIsoDate } from "@/lib/delivery";
 import { getOrderById } from "@/lib/order-queries";
 import { PAYMENT_METHOD_LABELS } from "@/lib/orders";
 import { StatusControls } from "../StatusControls";
@@ -85,6 +86,30 @@ export default async function AdminOrderPage({
           </dl>
         </section>
 
+        {/* Its own card, above the address: this is what the week is planned
+            around, so it should not have to be hunted for. */}
+        {order.deliveryDate ? (
+          <section
+            className={`rounded-xl border p-5 ${
+              order.rushFee > 0
+                ? "border-blush-300 bg-blush-50"
+                : "border-moss-100 bg-moss-50"
+            }`}
+          >
+            <h2 className="text-xs font-semibold tracking-[0.18em] text-ink-soft uppercase">
+              Needed by{order.rushFee > 0 ? " — rush" : ""}
+            </h2>
+            <p className="mt-1 font-display text-xl font-medium text-ink">
+              {formatDeliveryDate(toIsoDate(order.deliveryDate))}
+            </p>
+            {order.rushFee > 0 ? (
+              <p className="mt-1 text-xs text-blush-600">
+                {formatPrice(order.rushFee)} rush fee charged.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
+
         <section className="rounded-xl border border-canvas-deep bg-canvas p-5">
           <h2 className="font-display text-base font-medium text-ink">Deliver to</h2>
 
@@ -97,7 +122,9 @@ export default async function AdminOrderPage({
           </address>
 
           <p className="mt-3 text-xs text-ink-faint">
-            Delivery charged as {order.shippingLabel} ({order.shippingBasis})
+            {order.shippingBasis === "DISABLED"
+              ? "Delivery was not charged."
+              : `Delivery charged as ${order.shippingLabel} (${order.shippingBasis})`}
           </p>
 
           {order.deliveryNotes ? (
@@ -199,12 +226,20 @@ export default async function AdminOrderPage({
               <dt className="text-ink-soft">Subtotal</dt>
               <dd className="text-ink">{formatPrice(order.subtotal)}</dd>
             </div>
-            <div className="flex items-baseline justify-between gap-4">
-              <dt className="text-ink-soft">Delivery</dt>
-              <dd className="text-ink">
-                {order.shippingFee === 0 ? "Free" : formatPrice(order.shippingFee)}
-              </dd>
-            </div>
+            {order.shippingBasis === "DISABLED" ? null : (
+              <div className="flex items-baseline justify-between gap-4">
+                <dt className="text-ink-soft">Delivery</dt>
+                <dd className="text-ink">
+                  {order.shippingFee === 0 ? "Free" : formatPrice(order.shippingFee)}
+                </dd>
+              </div>
+            )}
+            {order.rushFee > 0 ? (
+              <div className="flex items-baseline justify-between gap-4">
+                <dt className="text-ink-soft">Rush date</dt>
+                <dd className="text-ink">{formatPrice(order.rushFee)}</dd>
+              </div>
+            ) : null}
             <div className="flex items-baseline justify-between gap-4 border-t border-canvas-deep pt-2">
               <dt className="font-semibold text-ink">Total</dt>
               <dd className="font-display text-lg font-semibold text-ink">

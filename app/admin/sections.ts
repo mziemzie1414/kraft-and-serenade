@@ -28,6 +28,12 @@ export const ADMIN_SETTINGS = [
       "Whether delivery is charged, the flat rate, and per-region or per-city exceptions.",
   },
   {
+    name: "Delivery dates",
+    href: "/admin/delivery",
+    description:
+      "Which days customers can pick at checkout, the rush fee for last-minute orders, and one-off closures.",
+  },
+  {
     name: "Colours",
     href: "/admin/theme",
     description:

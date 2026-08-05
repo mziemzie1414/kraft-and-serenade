@@ -484,10 +484,22 @@ model Order {
 
   deliveryNotes String?
 
+  /// The day the customer asked for, with no time of day.
+  ///
+  /// `@db.Date` rather than a timestamp on purpose: a florist delivers on a day,
+  /// not at an instant, and storing midnight in some zone invites the value to
+  /// shift by one when it is read back somewhere else. The shop runs on Manila
+  /// time; see `lib/delivery.ts`.
+  ///
+  /// Nullable only because orders placed before this existed have no date.
+  deliveryDate DateTime? @db.Date
+
   /// All whole pesos, calculated server-side when the order was placed.
   subtotal    Int
   shippingFee Int
-  total       Int
+  /// Surcharge for a same-day or next-day delivery date. Zero when not rushed.
+  rushFee Int @default(0)
+  total   Int
 
   /// Which rule produced the shipping fee, kept so the admin can see why.
   shippingBasis String
@@ -517,7 +529,69 @@ model Order {
   @@index([status, createdAt])
   @@index([createdAt])
   @@index([customerId, createdAt])
+  /// The florist's other question: what is going out on a given day.
+  @@index([deliveryDate])
   @@map("order")
+}
+
+/// When the shop delivers, and what a rushed date costs. One row, fixed id.
+model DeliverySettings {
+  id String @id
+
+  /// Off means no date is asked for at checkout at all, and nothing is charged.
+  isEnabled Boolean @default(true)
+
+  /// Whole pesos added when the chosen date falls inside the rush window.
+  rushFee Int
+
+  /// How many days ahead still counts as rushed, counting today as 0. `1` means
+  /// today and tomorrow are both surcharged, which is the default.
+  rushWithinDays Int
+
+  /// Earliest date a customer may pick, as days from today. `0` allows same-day.
+  leadTimeDays Int
+
+  /// How far ahead the calendar opens. Stops someone booking a bouquet for 2029.
+  maxAdvanceDays Int
+
+  /// Weekdays the shop never delivers, `0` Sunday through `6` Saturday. An array
+  /// rather than seven booleans so adding a day is a value change, not a column.
+  closedWeekdays Int[]
+
+  overrides DeliveryDateException[]
+
+  updatedAt DateTime @updatedAt
+
+  @@map("delivery_settings")
+}
+
+/// One specific date that breaks the weekly pattern.
+///
+/// Both directions in one table, decided by `isOpen`: a holiday closure and a
+/// one-off Sunday opening are the same kind of fact about the same day, and two
+/// tables would let a date appear in both and leave the winner undefined.
+model DeliveryDateException {
+  id String @id @default(uuid())
+
+  /// Date only, for the reason given on `Order.deliveryDate`.
+  date DateTime @db.Date
+
+  /// `false` blocks a day that would otherwise be open; `true` opens one that the
+  /// weekday rules close.
+  isOpen Boolean @default(false)
+
+  /// Shown to nobody but the admin, e.g. "Holy Week" or "fully booked".
+  note String?
+
+  settingsId String
+  settings   DeliverySettings @relation(fields: [settingsId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  /// One ruling per day.
+  @@unique([date])
+  @@index([settingsId, date])
+  @@map("delivery_date_exception")
 }
 
 /// Someone who has made an account on the storefront.

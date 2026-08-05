@@ -106,6 +106,7 @@ app/
     orders/               every order, filterable; [id] confirms and fulfils one
     store/                store details, opening hours, admin credentials
     shipping/             delivery toggle, flat rate, per-location rates
+    delivery/             which days customers can pick, rush fee, closures
     theme/                colour palette
     hero/                 hero section
     why-choose-us/        studio photos, selling points, stat strip
@@ -130,11 +131,11 @@ two can never disagree about what the shop contains.
 
 ## Data model
 
-`prisma/schema.prisma`. Thirteen migrations so far: `hero_section`, `theme`,
+`prisma/schema.prisma`. Fourteen migrations so far: `hero_section`, `theme`,
 `catalog`, `best_seller_rank`, `occasion`, `why_choose_us_and_how_it_works`,
 `reviews_gallery_promo`, `faq_and_newsletter`,
 `store_settings_and_admin_auth`, `shipping`, `orders`, `paymongo`,
-`customer_accounts`.
+`customer_accounts`, `delivery_dates`.
 
 ### Migrating through the Supabase pooler
 
@@ -193,6 +194,7 @@ is live?" question to answer.
 | `FaqSection`           | `faqs`           | `Faq`                                 |
 | `StoreSettings`        | `store`          | `BusinessHour`                        |
 | `ShippingSettings`     | `shipping`       | `ShippingRate`                        |
+| `DeliverySettings`     | `delivery`       | `DeliveryDateException`               |
 
 Children cascade on delete.
 
@@ -266,6 +268,7 @@ are Client Components and would otherwise pull Prisma into the browser bundle.
 | `lib/cart.ts`              | `lib/cart-server.ts`                            |
 | `lib/customer.ts`          | `lib/customer-auth.ts`, `lib/customer-queries.ts` |
 | `lib/orders.ts`            | `lib/order-queries.ts`                          |
+| `lib/delivery.ts`          | `lib/delivery-queries.ts`                       |
 | `lib/nav.ts`               | `lib/auth.ts`, `lib/password.ts`                |
 | `lib/site-url.ts`          | `lib/email.ts`, `lib/order-emails.ts`           |
 
@@ -405,6 +408,7 @@ Mutations call `revalidatePath`, which matters because `/` is prerendered:
 | Store settings | `revalidatePath("/", "layout")` — footer and page titles    |
 | Shipping       | nothing; only checkout reads it, and that is dynamic        |
 | Order status   | `/admin/orders` and that order's own page — both dynamic     |
+| Delivery dates | `revalidatePath("/admin/delivery")`; checkout is dynamic     |
 
 The customer-facing account actions follow the same rule: those pages read the
 session so they are dynamic already, and only the address mutations revalidate —
@@ -473,9 +477,14 @@ the same data the order is built from.
 - the cart is re-read from the cookie and re-priced with `hydrateCart`
 - the delivery fee is re-resolved with `resolveShippingFee` from the submitted
   PSGC codes
+- the delivery date is re-checked and its surcharge recalculated with
+  `resolveDelivery` — see [Delivery dates](#delivery-dates)
 
-Nothing about money is read from the form. Verified: posting `subtotal`,
-`total` and `shippingFee` alongside a valid order changes none of them.
+Nothing about money is read from the form. Verified: posting `subtotal`, `total`,
+`shippingFee` and `rushFee` alongside a valid order changes none of them.
+
+An order total is therefore `subtotal + shippingFee + rushFee`, all whole pesos and
+all decided server-side.
 
 `OrderItem` copies the product name, slug, image and unit price at the time of
 purchase. The relation to `Product` is `onDelete: SetNull`, so deleting a product
@@ -838,16 +847,131 @@ derived from whether that key still matches — that is what keeps stale options
 from flashing without clearing state inside an effect, which the React Compiler
 rejects.
 
+`LocationPicker` takes a `required` prop, defaulting to true. It is false in the
+"add a rate" section of `/admin/shipping`, and that matters more than it sounds:
+the section is empty most of the time, and marking its selects required made an
+untouched picker silently block **every** save on that page, including toggling the
+flat rate. There is no browser message pointing at a control the admin was not
+using. Callers that pass `required={false}` validate on the server instead.
+
 Shipping fees resolve in `resolveShippingFee` (`lib/shipping.ts`):
 
 1. a rate for the selected city/municipality
 2. otherwise a rate for the region
 3. otherwise the flat rate
 
-Disabled shipping short-circuits to zero. That ordering is the point of the table:
+Disabled shipping short-circuits to zero with `basis: "DISABLED"`, and **every
+surface then leaves the delivery line out entirely rather than printing "Free"** —
+the cart, checkout, the confirmation page, the order emails and the admin order
+detail all check for it. "Free" advertises a concession that was never on offer and
+invites the question of when it stops being free. `Order.shippingBasis` is what a
+stored order is judged by, since the setting may have changed since.
+
+That ordering is the point of the table:
 a region can be priced broadly and individual cities corrected without unpicking
 anything. `ShippingRate` stores the PSGC code, the scope (`REGION` or `CITY`), and
 the name at the time it was added.
+
+Deleting a rate is its own action and takes effect immediately, rather than a
+checkbox that only applies on save. The old scheme paired removals to rows by array
+index — `rateRemove-<index>` had to line up with the order the `rateId` inputs were
+submitted in — which was fragile for no benefit. The button cannot be its own
+`<form>`, because the row sits inside the settings form and nested forms are invalid
+HTML, so it is a `type="button"` calling the Server Action directly with a
+hand-built `FormData`. That also means it sends exactly its own row's id.
+
+## Delivery dates
+
+Customers pick a day at checkout from a calendar the shop controls, and a date
+close enough to disrupt the week carries a surcharge. Configured in
+`/admin/delivery`.
+
+### Dates are strings, and that is the whole design
+
+`lib/delivery.ts` speaks `YYYY-MM-DD` everywhere. Never `Date`.
+
+A `Date` is an instant; a delivery date is not. It is a day on a calendar hanging
+in a shop in Pasig City. Mixing the two is how a bouquet arrives a day late: the
+server runs in UTC, the shop is UTC+8, so an order placed at 9pm Manila on the 6th
+is "the 5th" to a naive `new Date()`.
+
+Three rules keep that from happening:
+
+- **The current day comes from `todayInShopZone()`**, which formats the instant in
+  `Asia/Manila` via `Intl.DateTimeFormat().formatToParts()`. Parts rather than
+  slicing a locale string, because locale output is not a format to parse — `en-CA`
+  happens to produce ISO order and is not promised to keep doing so.
+- **Arithmetic runs on UTC getters.** `parseIsoDate` builds a `Date` at UTC
+  midnight, and every helper reads it back with `getUTC*`, so it behaves the same
+  on every machine.
+- **`today` is always passed down from the server.** The admin calendar, the
+  checkout picker and `placeOrder` all receive it. A customer in another timezone
+  should see the shop's idea of tomorrow, and a wound-back clock must not buy a
+  same-day slot.
+
+`Order.deliveryDate` and `DeliveryDateException.date` are `@db.Date`, not
+timestamps. `lib/delivery-queries.ts` is the only place those become strings and
+back. Verified: a date written and read through Postgres lands on the same day.
+
+### What decides whether a day is available
+
+`describeDay`, in this order:
+
+1. the past — never
+2. inside the lead time — "we need at least N days' notice"
+3. beyond the booking window — "too far ahead to book yet"
+4. an explicit `DeliveryDateException` for that day, either direction
+5. otherwise the weekly pattern, `closedWeekdays`
+
+Steps 1 to 3 come first on purpose. **An exception can open a day the weekly
+pattern closes, but it cannot open a day inside the lead time, in the past, or
+beyond the window.** Those are hard limits rather than preferences, and letting a
+one-off opening beat them would sell same-day orders the shop has said it cannot
+build. All three verified.
+
+Closures and openings share one table, keyed on `isOpen`. A holiday closure and a
+one-off Sunday opening are the same kind of fact about the same day, and two tables
+would let a date appear in both with no defined winner. `date` is unique for the
+same reason.
+
+### The rush fee
+
+`resolveDelivery` is the only place it is decided. The checkout form calls it for
+the live figure and `placeOrder` calls it again on the server, so the number shown
+and the number charged come from one function.
+
+Rushed means `daysAhead <= rushWithinDays`, counting today as 0 — so the default
+`1` surcharges today and tomorrow. A `rushFee` of 0 switches it off without
+touching the window.
+
+The surcharge is printed on the day itself in the calendar (`+50`) rather than only
+in the total, so the cost is visible before choosing instead of appearing as a jump
+afterwards.
+
+`placeOrder` takes a date from the form and nothing else — not whether it is
+available, and not what it costs. Verified: posting `rushFee: 0`, `subtotal: 1` and
+`total: 1` alongside a valid rush-date order stored ₱50, ₱7,360 and ₱7,410. Past,
+out-of-window, blank and malformed dates are all refused. Re-checking also catches
+the honest case: the admin closing a day while somebody had checkout open on it.
+
+### The calendar component
+
+`components/ui/MonthCalendar.tsx` lays out a month and steps between them, and asks
+the caller what each day looks like through a `dayState(iso)` function. Day state is
+a callback rather than props because the two screens want opposite things: checkout
+greys out what cannot be picked, while the admin needs to **click a closed day** to
+reopen it. Built here rather than pulled from a date-picker library because the hard
+part is the shop's rules, not the grid, and a library would need all of them
+expressed as callbacks anyway.
+
+### Closing a day that already has orders
+
+`setDeliveryException` counts the non-cancelled orders already booked for a day and
+says so in the success message, but does not refuse. A shop may genuinely need to
+close a day it has taken orders for — a typhoon, a burst pipe — and refusing would
+leave them editing the database by hand. It must not happen silently, though, so
+the count and a prompt to contact those customers come back with the confirmation.
+The admin calendar also shows the booked count on each day.
 
 ## Images
 
@@ -985,5 +1109,25 @@ small print are in the component. Its form does write to the database.
 - **A saved address cannot name a different recipient.** Bouquets are usually sent
   to someone else, but `Order` carries one set of contact details, so that needs a
   recipient on the order before it can mean anything on the address.
+- **There is no per-day capacity limit.** A day is open or closed; nothing caps how
+  many bouquets can be booked for one date. The admin calendar shows the count so it
+  can be watched, and a day can be closed by hand once it is full, but nothing stops
+  the twentieth order for a Saturday. A `maxOrdersPerDay` on `DeliverySettings` and a
+  count check in `describeDay` would do it — but `describeDay` is pure and
+  synchronous, so the counts would have to be loaded and passed in.
+- **No same-day cut-off time.** Delivery dates are days with no time of day, as
+  asked for, so an order placed at 11pm can still choose that same day if the lead
+  time is 0. The announcement bar already promises same-day "before 1:00 PM", so the
+  two disagree. Either set the lead time to 1 or add a cut-off hour, after which
+  today stops being selectable.
+- **Nothing reacts to a closure after the fact.** Closing a day warns that orders
+  are already booked for it, but those orders keep their date and nobody is emailed.
+  Rearranging is a phone call.
+- **The delivery date cannot be changed after ordering.** Not by the customer and
+  not by the admin — it needs the order-editing screen that does not exist yet.
+- **The calendar has not been keyboard- or screen-reader-tested.** It is a grid of
+  real buttons with `aria-pressed`, disabled states and labelled reasons, and the
+  month heading is announced, but arrow-key navigation between days is not
+  implemented and none of it has been driven with assistive technology.
 - **Two categories have no products.** Graduation and Money Bouquets, because the
   original hard-coded data had none. They render an empty state.

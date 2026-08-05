@@ -173,7 +173,24 @@ export default async function AdminOrdersPage({
                       {order._count.items} item
                       {order._count.items === 1 ? "" : "s"}
                       <span className="mt-0.5 block text-ink-faint">
-                        {formatOrderDate(order.createdAt)} ·{" "}
+                        {/* The delivery date leads, because that is what the week
+                            is planned around; when it was placed is secondary. */}
+                        {order.deliveryDate ? (
+                          <>
+                            <span
+                              className={
+                                order.rushFee > 0
+                                  ? "font-semibold text-blush-600"
+                                  : "font-medium text-ink-soft"
+                              }
+                            >
+                              For {formatOrderDate(order.deliveryDate)}
+                              {order.rushFee > 0 ? " · rush" : ""}
+                            </span>
+                            {" · "}
+                          </>
+                        ) : null}
+                        placed {formatOrderDate(order.createdAt)} ·{" "}
                         {PAYMENT_METHOD_LABELS[order.paymentMethod]}
                       </span>
                     </span>

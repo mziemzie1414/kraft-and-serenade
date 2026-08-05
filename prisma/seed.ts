@@ -8,6 +8,7 @@ import { HOW_IT_WORKS_DEFAULTS, HOW_IT_WORKS_ID } from "../lib/how-it-works";
 import { prisma } from "../lib/prisma";
 import { PROMO_DEFAULTS, PROMO_ID } from "../lib/promo";
 import { REVIEWS_DEFAULTS, REVIEWS_ID } from "../lib/reviews";
+import { DELIVERY_DEFAULTS, DELIVERY_ID } from "../lib/delivery";
 import { SHIPPING_DEFAULTS, SHIPPING_ID } from "../lib/shipping";
 import { STORE_DEFAULTS, STORE_ID } from "../lib/store";
 import { THEME_DEFAULTS, THEME_ID } from "../lib/theme";
@@ -212,6 +213,16 @@ async function seedShipping() {
   await prisma.shippingSettings.upsert({
     where: { id: SHIPPING_ID },
     create: { id: SHIPPING_ID, ...SHIPPING_DEFAULTS },
+    update: {},
+  });
+
+  /**
+   * Delivery dates. `update: {}` for the same reason as shipping: re-seeding must
+   * not undo a rush fee or a set of closed weekdays the shop has configured.
+   */
+  await prisma.deliverySettings.upsert({
+    where: { id: DELIVERY_ID },
+    create: { id: DELIVERY_ID, ...DELIVERY_DEFAULTS },
     update: {},
   });
 }

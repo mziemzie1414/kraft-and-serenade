@@ -30,7 +30,12 @@ type Priced = { ids: string; byId: Map<string, CartItem> };
  * The previous priced response is kept while a new one loads, so adding or
  * removing a bouquet does not blank the list.
  */
-export function CartContents({ shippingNote }: { shippingNote: string }) {
+export function CartContents({
+  /** `null` when the shop does not charge for delivery, in which case no row shows. */
+  shippingNote,
+}: {
+  shippingNote: string | null;
+}) {
   const { lines, setQuantity, remove } = useCart();
   const [priced, setPriced] = useState<Priced | null>(null);
   const [failed, setFailed] = useState(false);
@@ -223,10 +228,12 @@ export function CartContents({ shippingNote }: { shippingNote: string }) {
               </dt>
               <dd className="font-semibold text-ink">{formatPrice(subtotal)}</dd>
             </div>
-            <div className="flex items-baseline justify-between gap-4">
-              <dt className="text-ink-soft">Delivery</dt>
-              <dd className="text-ink-faint">{shippingNote}</dd>
-            </div>
+            {shippingNote ? (
+              <div className="flex items-baseline justify-between gap-4">
+                <dt className="text-ink-soft">Delivery</dt>
+                <dd className="text-ink-faint">{shippingNote}</dd>
+              </div>
+            ) : null}
           </dl>
 
           <Link

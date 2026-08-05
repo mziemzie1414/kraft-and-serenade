@@ -3,6 +3,8 @@ import Link from "next/link";
 import { getCart } from "@/lib/cart-server";
 import { getCustomerSummary } from "@/lib/customer-auth";
 import { listAddresses } from "@/lib/customer-queries";
+import { todayInShopZone } from "@/lib/delivery";
+import { getDelivery } from "@/lib/delivery-queries";
 import { isPaymongoConfigured } from "@/lib/paymongo";
 import { getShipping } from "@/lib/shipping-queries";
 import { getStore } from "@/lib/store";
@@ -19,9 +21,10 @@ export default async function CheckoutPage() {
    * client-side. Checkout has to be dynamic anyway, and this way the summary the
    * customer confirms is rendered from the same data the order is built from.
    */
-  const [cart, shipping, store, customer] = await Promise.all([
+  const [cart, shipping, delivery, store, customer] = await Promise.all([
     getCart(),
     getShipping(),
+    getDelivery(),
     getStore(),
     /**
      * Read here rather than through the navbar's client store, because the form is
@@ -78,6 +81,10 @@ export default async function CheckoutPage() {
               qrPhAvailable={isPaymongoConfigured()}
               customer={customer}
               savedAddresses={savedAddresses}
+              delivery={delivery}
+              /* Worked out server-side in the shop's timezone, so a customer's
+                 own clock cannot disagree with what the order action accepts. */
+              today={todayInShopZone()}
             />
           )}
         </div>

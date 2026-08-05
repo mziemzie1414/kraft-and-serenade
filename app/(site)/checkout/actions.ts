@@ -8,6 +8,13 @@ import { getCart } from "@/lib/cart-server";
 import { looksLikeEmail, looksLikePhone } from "@/lib/customer";
 import { getCustomer } from "@/lib/customer-auth";
 import { saveOrderAddress } from "@/lib/customer-queries";
+import {
+  parseIsoDate,
+  resolveDelivery,
+  toIsoDate,
+  todayInShopZone,
+} from "@/lib/delivery";
+import { getDelivery } from "@/lib/delivery-queries";
 import { sendOrderPlacedEmails } from "@/lib/order-emails";
 import { getStore } from "@/lib/store";
 import { generateAccessToken, generateOrderNumber } from "@/lib/order-queries";
@@ -112,6 +119,28 @@ export async function placeOrder(
     const shipping = await getShipping();
     const resolved = resolveShippingFee(shipping, { regionCode, cityCode });
 
+    /**
+     * The delivery date is re-checked against the live rules and the surcharge
+     * recalculated. The form supplies a date and nothing else — not whether it is
+     * available, and not what it costs.
+     *
+     * `todayInShopZone()` is read here rather than taken from the browser, so a
+     * wound-back clock cannot buy a same-day slot the shop has closed.
+     *
+     * Re-checking also catches the honest case: the admin closing a day while
+     * somebody had the checkout page open on it.
+     */
+    const delivery = await getDelivery();
+    const resolvedDate = resolveDelivery(
+      delivery,
+      text(formData, "deliveryDate"),
+      todayInShopZone(),
+    );
+
+    if (!resolvedDate.ok) {
+      throw new FieldError(resolvedDate.reason, "deliveryDate");
+    }
+
     if (method === "PAYMONGO_QRPH" && !isPaymongoConfigured()) {
       throw new FieldError(
         "Card and QR Ph payment is not available right now.",
@@ -132,9 +161,13 @@ export async function placeOrder(
         customerPhone,
         ...address,
         deliveryNotes: text(formData, "deliveryNotes") || null,
+        // Stored as a `@db.Date`, so it has to go in as UTC midnight — see the
+        // note at the top of lib/delivery.ts.
+        deliveryDate: resolvedDate.date ? parseIsoDate(resolvedDate.date) : null,
         subtotal: cart.subtotal,
         shippingFee: resolved.fee,
-        total: cart.subtotal + resolved.fee,
+        rushFee: resolvedDate.rushFee,
+        total: cart.subtotal + resolved.fee + resolvedDate.rushFee,
         shippingBasis: resolved.basis,
         shippingLabel: resolved.label,
         paymentMethod: method,
@@ -230,9 +263,15 @@ export async function placeOrder(
             street: placed.street,
             postalCode: placed.postalCode,
             deliveryNotes: placed.deliveryNotes,
+            // Back to a plain `YYYY-MM-DD` for the email, which never handles a Date.
+            deliveryDate: placed.deliveryDate
+              ? toIsoDate(placed.deliveryDate)
+              : null,
             subtotal: placed.subtotal,
             shippingFee: placed.shippingFee,
+            rushFee: placed.rushFee,
             total: placed.total,
+            shippingBasis: placed.shippingBasis,
             shippingLabel: placed.shippingLabel,
             paymentMethod: placed.paymentMethod,
             items: cart.items.map((item) => ({

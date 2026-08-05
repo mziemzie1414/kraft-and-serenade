@@ -55,6 +55,7 @@ export async function listCustomerOrders(customerId: string, take = 50) {
       status: true,
       total: true,
       createdAt: true,
+      deliveryDate: true,
       items: {
         select: { id: true, productName: true, imageUrl: true, quantity: true },
       },

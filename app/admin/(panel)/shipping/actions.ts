@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { SHIPPING_ID } from "@/lib/shipping";
@@ -30,18 +31,26 @@ export async function saveShipping(
       "Flat rate",
     );
 
-    // Existing rates: each row carries its id, and a ticked box removes it.
+    /**
+     * Existing rates: each row submits its id and its fee, positionally paired.
+     *
+     * Removal is not handled here. It used to be a `rateRemove-<index>` checkbox
+     * that had to line up with the order the `rateId` inputs were submitted in —
+     * fragile, and it meant deleting a rate required saving the whole form. It is
+     * `deleteShippingRate` below now.
+     */
     const ids = formData.getAll("rateId");
+    const fees = formData.getAll("rateFee");
     const kept: { id: string; fee: number }[] = [];
 
     for (let index = 0; index < ids.length; index += 1) {
       const id = String(ids[index] ?? "");
+
       if (!id) continue;
-      if (formData.get(`rateRemove-${index}`) !== null) continue;
 
       kept.push({
         id,
-        fee: wholePesos(String(formData.getAll("rateFee")[index] ?? ""), "Rate"),
+        fee: wholePesos(String(fees[index] ?? ""), "Rate"),
       });
     }
 
@@ -73,21 +82,12 @@ export async function saveShipping(
       }
     }
 
-    const removedIds = ids
-      .map((id, index) => ({
-        id: String(id ?? ""),
-        removed: formData.get(`rateRemove-${index}`) !== null,
-      }))
-      .filter((row) => row.id && row.removed)
-      .map((row) => row.id);
-
     await prisma.$transaction([
       prisma.shippingSettings.upsert({
         where: { id: SHIPPING_ID },
         create: { id: SHIPPING_ID, isEnabled, flatRate },
         update: { isEnabled, flatRate },
       }),
-      ...removedIds.map((id) => prisma.shippingRate.delete({ where: { id } })),
       ...kept.map((rate) =>
         prisma.shippingRate.update({
           where: { id: rate.id },
@@ -109,6 +109,44 @@ export async function saveShipping(
         ? `Shipping updated, and a rate added for ${addition.label}.`
         : "Shipping updated.",
     };
+  } catch (error) {
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "Something went wrong.",
+    };
+  }
+}
+
+/**
+ * Deletes one location rate, immediately.
+ *
+ * Its own action rather than part of `saveShipping`, because removing a rate is a
+ * single decision and should not require saving the rest of the page — and because
+ * the old checkbox approach paired removals to rows by array index, which only
+ * worked as long as the render order and the submission order agreed.
+ */
+export async function deleteShippingRate(
+  _prevState: AdminFormState,
+  formData: FormData,
+): Promise<AdminFormState> {
+  try {
+    await requireAdmin();
+
+    const id = String(formData.get("rateId") ?? "").trim();
+
+    if (!id) throw new Error("Which rate?");
+
+    // `deleteMany` rather than `delete`, so a rate already gone is not an error —
+    // two tabs open on this page should not produce a crash.
+    const removed = await prisma.shippingRate.deleteMany({ where: { id } });
+
+    if (removed.count === 0) {
+      return { status: "saved", message: "That rate had already been removed." };
+    }
+
+    revalidatePath("/admin/shipping");
+
+    return { status: "saved", message: "Rate removed." };
   } catch (error) {
     return {
       status: "error",

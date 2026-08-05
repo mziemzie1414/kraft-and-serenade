@@ -58,6 +58,7 @@ export function LocationPicker({
   onChange,
   idPrefix,
   disabled = false,
+  required = true,
   inputClassName,
   labelClassName,
 }: {
@@ -65,6 +66,16 @@ export function LocationPicker({
   onChange: (next: LocationValue) => void;
   idPrefix: string;
   disabled?: boolean;
+  /**
+   * Whether the browser should block submission until a location is chosen.
+   *
+   * True for an address someone is actually delivering to. False where the picker
+   * is one optional part of a bigger form — the "add a rate" section of
+   * `/admin/shipping` is empty most of the time, and marking it required made an
+   * untouched picker silently block every save on the page, including toggling
+   * the flat rate. Those callers validate on the server instead.
+   */
+  required?: boolean;
   inputClassName: string;
   labelClassName: string;
 }) {
@@ -179,7 +190,7 @@ export function LocationPicker({
             onChange({ ...EMPTY_LOCATION, regionCode: code, regionName: name });
           }}
           className={`mt-1.5 ${inputClassName}`}
-          required
+          required={required}
         >
           <option value="">
             {regionsReady ? "Choose a region…" : "Loading…"}
@@ -216,7 +227,7 @@ export function LocationPicker({
               });
             }}
             className={`mt-1.5 ${inputClassName}`}
-            required
+            required={required}
           >
             <option value="">Choose a province…</option>
             {provinces.map((province) => (
@@ -250,7 +261,7 @@ export function LocationPicker({
             });
           }}
           className={`mt-1.5 ${inputClassName}`}
-          required
+          required={required}
         >
           <option value="">
             {!value.regionCode

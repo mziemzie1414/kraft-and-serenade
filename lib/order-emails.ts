@@ -21,6 +21,7 @@
  * Recolouring the site therefore does not recolour these.
  */
 import { formatPrice } from "./data";
+import { formatDeliveryDate, formatDeliveryDateShort } from "./delivery";
 import { escapeHtml, isEmailConfigured, sendEmails, storeInbox } from "./email";
 import type { Message } from "./email";
 import { absoluteUrl } from "./site-url";
@@ -61,9 +62,13 @@ export type OrderEmailData = {
   street: string;
   postalCode: string;
   deliveryNotes: string | null;
+  /** `YYYY-MM-DD`, or `null` on an order placed before dates were asked for. */
+  deliveryDate: string | null;
   subtotal: number;
   shippingFee: number;
+  rushFee: number;
   total: number;
+  shippingBasis: string;
   shippingLabel: string;
   paymentMethod: "MANUAL" | "PAYMONGO_QRPH";
   items: {
@@ -128,10 +133,14 @@ function totalsRows(order: OrderEmailData): string {
 
   return [
     line("Subtotal", formatPrice(order.subtotal)),
-    line(
-      `Delivery — ${order.shippingLabel}`,
-      order.shippingFee === 0 ? "Free" : formatPrice(order.shippingFee),
-    ),
+    // Left out when delivery was not charged, rather than reading "Free".
+    order.shippingBasis === "DISABLED"
+      ? ""
+      : line(
+          `Delivery — ${order.shippingLabel}`,
+          order.shippingFee === 0 ? "Free" : formatPrice(order.shippingFee),
+        ),
+    order.rushFee > 0 ? line("Rush date", formatPrice(order.rushFee)) : "",
     line("Total", formatPrice(order.total), true),
   ].join("");
 }
@@ -148,9 +157,30 @@ function itemsText(order: OrderEmailData): string {
 function totalsText(order: OrderEmailData): string {
   return [
     `  Subtotal: ${formatPrice(order.subtotal)}`,
-    `  Delivery (${order.shippingLabel}): ${order.shippingFee === 0 ? "Free" : formatPrice(order.shippingFee)}`,
+    order.shippingBasis === "DISABLED"
+      ? null
+      : `  Delivery (${order.shippingLabel}): ${order.shippingFee === 0 ? "Free" : formatPrice(order.shippingFee)}`,
+    order.rushFee > 0 ? `  Rush date: ${formatPrice(order.rushFee)}` : null,
     `  Total: ${formatPrice(order.total)}`,
-  ].join("\n");
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
+}
+
+/**
+ * The requested delivery day as a block, or nothing when the order has no date.
+ *
+ * Given its own heading in both emails rather than tucked beside the address,
+ * because it is the one thing the florist schedules around and the one thing a
+ * customer will re-open the email to check.
+ */
+function deliveryDateHtml(order: OrderEmailData): string {
+  if (!order.deliveryDate) return "";
+
+  return `<h2 style="margin:24px 0 8px;font-size:15px;font-weight:normal;color:${COLOR.ink};">Arriving on</h2>
+<p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.7;color:${COLOR.inkSoft};">
+${escapeHtml(formatDeliveryDate(order.deliveryDate))}${order.rushFee > 0 ? " &middot; rush date" : ""}
+</p>`;
 }
 
 /* --------------------------------------------------------- customer receipt */
@@ -194,6 +224,8 @@ We have your order and will start on it shortly. Keep this email — the link be
 <h2 style="margin:0 0 8px;font-size:15px;font-weight:normal;color:${COLOR.ink};">How to pay</h2>
 ${payingHtml}
 
+${deliveryDateHtml(order)}
+
 <h2 style="margin:24px 0 8px;font-size:15px;font-weight:normal;color:${COLOR.ink};">What you ordered</h2>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${itemRows(order)}</table>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:10px;">${totalsRows(order)}</table>
@@ -223,6 +255,9 @@ ${
       ? `  ${store.manualPaymentInstructions}${store.facebookUrl ? `\n  Facebook: ${store.facebookUrl}` : ""}`
       : "  Open your order to scan the QR Ph code. Codes expire after 30 minutes.",
     "",
+    order.deliveryDate
+      ? `Arriving on\n  ${formatDeliveryDate(order.deliveryDate)}${order.rushFee > 0 ? " (rush date)" : ""}\n`
+      : "",
     "What you ordered",
     itemsText(order),
     "",
@@ -273,9 +308,19 @@ export function buildStoreOrderEmail(
 
   const html = shell(
     `<h1 style="margin:0 0 6px;font-size:21px;font-weight:normal;color:${COLOR.ink};">New order ${escapeHtml(order.orderNumber)}</h1>
-<p style="margin:0 0 20px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:${COLOR.inkSoft};">
+<p style="margin:0 0 18px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:${COLOR.inkSoft};">
 ${escapeHtml(formatPrice(order.total))} &middot; ${escapeHtml(method)} &middot; awaiting payment
 </p>
+
+${
+  order.deliveryDate
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${order.rushFee > 0 ? "#fdf6f6" : COLOR.moss50};border:1px solid ${order.rushFee > 0 ? "#e3aeb4" : COLOR.moss100};border-radius:10px;margin-bottom:20px;">
+<tr><td style="padding:14px 16px;">
+<p style="margin:0 0 3px;font-family:Arial,Helvetica,sans-serif;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:${order.rushFee > 0 ? "#b25a66" : COLOR.moss700};">Needed by${order.rushFee > 0 ? " &mdash; rush" : ""}</p>
+<p style="margin:0;font-size:17px;font-weight:bold;color:${COLOR.ink};">${escapeHtml(formatDeliveryDate(order.deliveryDate))}</p>
+</td></tr></table>`
+    : ""
+}
 
 <p style="margin:0 0 22px;">
 <a href="${escapeHtml(adminUrl)}" style="display:inline-block;background-color:${COLOR.moss900};color:${COLOR.canvas};font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;text-decoration:none;padding:12px 24px;border-radius:999px;">Open in the admin panel</a>
@@ -308,6 +353,9 @@ ${
     `New order ${order.orderNumber}`,
     `${formatPrice(order.total)} · ${method} · awaiting payment`,
     "",
+    order.deliveryDate
+      ? `Needed by: ${formatDeliveryDate(order.deliveryDate)}${order.rushFee > 0 ? " (RUSH)" : ""}\n`
+      : "",
     `Open in the admin panel: ${adminUrl}`,
     "",
     "Customer",
@@ -331,7 +379,11 @@ ${
 
   return {
     to,
-    subject: `New order ${order.orderNumber} — ${formatPrice(order.total)}`,
+    // The date is in the subject so the shop can triage an inbox without opening
+    // anything, and a rush order is obvious at a glance.
+    subject: order.deliveryDate
+      ? `${order.rushFee > 0 ? "RUSH — " : ""}New order ${order.orderNumber} for ${formatDeliveryDateShort(order.deliveryDate)} — ${formatPrice(order.total)}`
+      : `New order ${order.orderNumber} — ${formatPrice(order.total)}`,
     html,
     text,
     // Replying goes to the customer, which is almost always what is wanted.

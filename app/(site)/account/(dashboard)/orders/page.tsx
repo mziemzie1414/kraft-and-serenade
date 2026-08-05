@@ -4,6 +4,7 @@ import Link from "next/link";
 import { formatPrice } from "@/lib/data";
 import { requireCustomer } from "@/lib/customer-auth";
 import { listCustomerOrders } from "@/lib/customer-queries";
+import { formatDeliveryDate, toIsoDate } from "@/lib/delivery";
 import { ORDER_STATUS_LABELS } from "@/lib/orders";
 
 export const metadata: Metadata = {
@@ -54,6 +55,7 @@ export default async function AccountOrdersPage() {
                 {order.orderNumber}
               </p>
               <p className="mt-1 text-xs text-ink-faint">
+                Placed{" "}
                 {order.createdAt.toLocaleDateString("en-PH", {
                   day: "numeric",
                   month: "long",
@@ -63,6 +65,11 @@ export default async function AccountOrdersPage() {
                   timeZone: "Asia/Manila",
                 })}
               </p>
+              {order.deliveryDate ? (
+                <p className="mt-0.5 text-xs font-medium text-moss-700">
+                  Arriving {formatDeliveryDate(toIsoDate(order.deliveryDate))}
+                </p>
+              ) : null}
             </div>
 
             <span

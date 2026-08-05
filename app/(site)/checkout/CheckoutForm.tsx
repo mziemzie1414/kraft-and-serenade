@@ -12,7 +12,14 @@ import {
   type SavedAddress,
 } from "@/lib/customer";
 import { formatPrice } from "@/lib/data";
+import {
+  firstSelectableDate,
+  formatDeliveryDateShort,
+  resolveDelivery,
+  type DeliveryContent,
+} from "@/lib/delivery";
 import { resolveShippingFee, type ShippingContent } from "@/lib/shipping";
+import { DeliveryDatePicker } from "./DeliveryDatePicker";
 import {
   EMPTY_LOCATION,
   LocationPicker,
@@ -30,6 +37,8 @@ const NEW_ADDRESS = "new";
 export function CheckoutForm({
   cart,
   shipping,
+  delivery,
+  today,
   hasPaymentQr,
   qrPhAvailable,
   customer,
@@ -37,6 +46,9 @@ export function CheckoutForm({
 }: {
   cart: HydratedCart;
   shipping: ShippingContent;
+  delivery: DeliveryContent;
+  /** `YYYY-MM-DD` in the shop's timezone, from the server. Never `new Date()` here. */
+  today: string;
   hasPaymentQr: boolean;
   qrPhAvailable: boolean;
   /** `null` for a guest, which is still the normal way to order here. */
@@ -84,8 +96,18 @@ export function CheckoutForm({
   const hasAccount = Boolean(customer) || signedUp;
 
   /**
-   * The live figure, from the same pure function the server uses when the order
-   * is created — so the number here and the number charged come from one place.
+   * Preselected to the soonest date the shop can actually manage, because an empty
+   * calendar with no hint of where to start is a worse default than a sensible
+   * suggestion the customer can move.
+   */
+  const [deliveryDate, setDeliveryDate] = useState(
+    () => firstSelectableDate(delivery, today) ?? "",
+  );
+
+  /**
+   * Both live figures come from the same pure functions the server uses when the
+   * order is created — so the numbers here and the amounts charged come from one
+   * place and cannot drift.
    */
   const resolved = location.cityCode
     ? resolveShippingFee(shipping, {
@@ -94,7 +116,10 @@ export function CheckoutForm({
       })
     : null;
 
-  const total = cart.subtotal + (resolved?.fee ?? 0);
+  const resolvedDelivery = resolveDelivery(delivery, deliveryDate, today);
+  const rushFee = resolvedDelivery.ok ? resolvedDelivery.rushFee : 0;
+
+  const total = cart.subtotal + (resolved?.fee ?? 0) + rushFee;
 
   /* An account needs both, and there is no point offering one before they are typed. */
   const canSignUp = looksLikeEmail(email) && looksLikePhone(phone);
@@ -321,6 +346,29 @@ export function CheckoutForm({
             </div>
           </fieldset>
 
+          {/* Only when the shop is taking dates. Switched off, no date is asked
+              for and none is required. */}
+          {delivery.isEnabled ? (
+            <fieldset>
+              <legend className="font-display text-lg font-medium text-ink">
+                Delivery date
+              </legend>
+              <p className="mt-1 text-sm text-ink-soft">
+                When would you like it to arrive?
+              </p>
+
+              <div className="mt-5">
+                <DeliveryDatePicker
+                  delivery={delivery}
+                  today={today}
+                  value={deliveryDate}
+                  onChange={setDeliveryDate}
+                  invalid={state.field === "deliveryDate"}
+                />
+              </div>
+            </fieldset>
+          ) : null}
+
           {/* Sign-up sits between the address and the payment choice on purpose:
               the details it needs are all above it, and it must not look like a
               step standing between the customer and paying. */}
@@ -447,27 +495,47 @@ export function CheckoutForm({
                 <dt className="text-ink-soft">Subtotal</dt>
                 <dd className="text-ink">{formatPrice(cart.subtotal)}</dd>
               </div>
-              <div className="flex items-baseline justify-between gap-4">
-                <dt className="text-ink-soft">
-                  Delivery
-                  {resolved ? (
-                    <span className="block text-xs text-ink-faint">
-                      {resolved.label}
-                    </span>
-                  ) : null}
-                </dt>
-                <dd className="text-ink">
-                  {resolved ? (
-                    resolved.fee === 0 ? (
-                      "Free"
+              {/* Nothing at all when the shop does not charge for delivery. A
+                  "Free" line advertises a concession that was never on offer, and
+                  invites the question of when it stops being free. */}
+              {shipping.isEnabled ? (
+                <div className="flex items-baseline justify-between gap-4">
+                  <dt className="text-ink-soft">
+                    Delivery
+                    {resolved ? (
+                      <span className="block text-xs text-ink-faint">
+                        {resolved.label}
+                      </span>
+                    ) : null}
+                  </dt>
+                  <dd className="text-ink">
+                    {resolved ? (
+                      resolved.fee === 0 ? (
+                        "Free"
+                      ) : (
+                        formatPrice(resolved.fee)
+                      )
                     ) : (
-                      formatPrice(resolved.fee)
-                    )
-                  ) : (
-                    <span className="text-ink-faint">Pick a city</span>
-                  )}
-                </dd>
-              </div>
+                      <span className="text-ink-faint">Pick a city</span>
+                    )}
+                  </dd>
+                </div>
+              ) : null}
+
+              {/* Only when it is actually being charged — a permanent "Rush ₱0"
+                  row would be noise on every normal order. */}
+              {rushFee > 0 ? (
+                <div className="flex items-baseline justify-between gap-4">
+                  <dt className="text-ink-soft">
+                    Rush date
+                    <span className="block text-xs text-ink-faint">
+                      {formatDeliveryDateShort(deliveryDate)}
+                    </span>
+                  </dt>
+                  <dd className="text-ink">{formatPrice(rushFee)}</dd>
+                </div>
+              ) : null}
+
               <div className="flex items-baseline justify-between gap-4 border-t border-canvas-deep pt-3">
                 <dt className="font-semibold text-ink">Total</dt>
                 <dd className="font-display text-xl font-semibold text-ink">

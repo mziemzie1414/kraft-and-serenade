@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CheckIcon } from "@/components/ui/Icons";
 import { formatPrice } from "@/lib/data";
+import { formatDeliveryDate, toIsoDate } from "@/lib/delivery";
 import { getOrderByToken } from "@/lib/order-queries";
 import { ORDER_STATUS_LABELS } from "@/lib/orders";
 import { getStore } from "@/lib/store";
@@ -156,6 +157,15 @@ export default async function OrderPage({ params }: PageProps<"/orders/[token]">
                 <span className="block">{order.customerEmail}</span>
               </address>
 
+              {order.deliveryDate ? (
+                <p className="mt-4 rounded-lg border border-moss-100 bg-moss-50 px-4 py-3 text-sm">
+                  <span className="font-medium text-moss-700">Arriving on</span>
+                  <span className="mt-0.5 block font-display text-base text-ink">
+                    {formatDeliveryDate(toIsoDate(order.deliveryDate))}
+                  </span>
+                </p>
+              ) : null}
+
               {order.deliveryNotes ? (
                 <p className="mt-4 rounded-lg border border-canvas-deep bg-canvas-alt px-4 py-3 text-sm text-ink-soft">
                   <span className="font-medium text-ink">Notes:</span>{" "}
@@ -204,17 +214,30 @@ export default async function OrderPage({ params }: PageProps<"/orders/[token]">
                   <dt className="text-ink-soft">Subtotal</dt>
                   <dd className="text-ink">{formatPrice(order.subtotal)}</dd>
                 </div>
-                <div className="flex items-baseline justify-between gap-4">
-                  <dt className="text-ink-soft">
-                    Delivery
-                    <span className="block text-xs text-ink-faint">
-                      {order.shippingLabel}
-                    </span>
-                  </dt>
-                  <dd className="text-ink">
-                    {order.shippingFee === 0 ? "Free" : formatPrice(order.shippingFee)}
-                  </dd>
-                </div>
+                {/* Left out entirely when delivery was not charged, rather than
+                    reading "Free" for something never offered as a concession. */}
+                {order.shippingBasis === "DISABLED" ? null : (
+                  <div className="flex items-baseline justify-between gap-4">
+                    <dt className="text-ink-soft">
+                      Delivery
+                      <span className="block text-xs text-ink-faint">
+                        {order.shippingLabel}
+                      </span>
+                    </dt>
+                    <dd className="text-ink">
+                      {order.shippingFee === 0
+                        ? "Free"
+                        : formatPrice(order.shippingFee)}
+                    </dd>
+                  </div>
+                )}
+
+                {order.rushFee > 0 ? (
+                  <div className="flex items-baseline justify-between gap-4">
+                    <dt className="text-ink-soft">Rush date</dt>
+                    <dd className="text-ink">{formatPrice(order.rushFee)}</dd>
+                  </div>
+                ) : null}
                 <div className="flex items-baseline justify-between gap-4 border-t border-canvas-deep pt-3">
                   <dt className="font-semibold text-ink">Total</dt>
                   <dd className="font-display text-xl font-semibold text-ink">
