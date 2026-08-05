@@ -1,3 +1,18 @@
+/**
+ * The shop's day-to-day work, as opposed to editing content.
+ *
+ * First in the sidebar on purpose: this is the screen an admin opens every
+ * morning, and everything below it is changed once and left alone.
+ */
+export const ADMIN_OPERATIONS = [
+  {
+    name: "Orders",
+    href: "/admin/orders",
+    description:
+      "Every order placed, with its contact details and delivery address. Confirm manual payments and mark orders fulfilled here.",
+  },
+] as const;
+
 /** Site-wide settings, not tied to one part of the page. */
 export const ADMIN_SETTINGS = [
   {

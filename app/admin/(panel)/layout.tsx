@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ADMIN_CATALOGUE, ADMIN_SECTIONS, ADMIN_SETTINGS } from "@/app/admin/sections";
+import {
+  ADMIN_CATALOGUE,
+  ADMIN_OPERATIONS,
+  ADMIN_SECTIONS,
+  ADMIN_SETTINGS,
+} from "@/app/admin/sections";
 import { signOut } from "@/app/admin/login/actions";
 import { getAdmin } from "@/lib/auth";
 import { getStore } from "@/lib/store";
@@ -58,6 +63,7 @@ export default async function AdminPanelLayout({
         </div>
 
         <nav aria-label="Admin" className="space-y-5 px-3 pb-6">
+          <NavGroup heading="Shop" items={ADMIN_OPERATIONS} />
           <NavGroup heading="Settings" items={ADMIN_SETTINGS} />
           <NavGroup heading="Catalogue" items={ADMIN_CATALOGUE} />
           <NavGroup heading="Page sections" items={ADMIN_SECTIONS} />

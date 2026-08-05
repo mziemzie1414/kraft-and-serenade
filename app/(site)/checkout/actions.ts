@@ -2,12 +2,15 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { CART_COOKIE } from "@/lib/cart";
 import { getCart } from "@/lib/cart-server";
 import { looksLikeEmail, looksLikePhone } from "@/lib/customer";
 import { getCustomer } from "@/lib/customer-auth";
 import { saveOrderAddress } from "@/lib/customer-queries";
-import { generateAccessToken, generateOrderNumber } from "@/lib/orders";
+import { sendOrderPlacedEmails } from "@/lib/order-emails";
+import { getStore } from "@/lib/store";
+import { generateAccessToken, generateOrderNumber } from "@/lib/order-queries";
 import { createQrPhPayment, isPaymongoConfigured } from "@/lib/paymongo";
 import { prisma } from "@/lib/prisma";
 import { getShipping } from "@/lib/shipping-queries";
@@ -195,6 +198,57 @@ export async function placeOrder(
         console.error("Could not create the QR Ph payment", paymentError);
       }
     }
+
+    /**
+     * Confirmation to the customer and an alert to the shop.
+     *
+     * Scheduled with `after` rather than awaited: the customer should not wait on
+     * a mail provider to learn their order went through, and the two requests are
+     * bounded at eight seconds each. `after` still runs when the action ends in a
+     * `redirect()`, which this one does, and unlike a dangling promise it survives
+     * the response being sent on serverless.
+     *
+     * Its own try/catch as well, so nothing in here can turn a placed order into
+     * an error the customer sees.
+     */
+    const placed = order;
+
+    after(async () => {
+      try {
+        await sendOrderPlacedEmails(
+          {
+            id: placed.id,
+            orderNumber: placed.orderNumber,
+            accessToken: placed.accessToken,
+            customerName: placed.customerName,
+            customerEmail: placed.customerEmail,
+            customerPhone: placed.customerPhone,
+            regionName: placed.regionName,
+            provinceName: placed.provinceName,
+            cityName: placed.cityName,
+            barangay: placed.barangay,
+            street: placed.street,
+            postalCode: placed.postalCode,
+            deliveryNotes: placed.deliveryNotes,
+            subtotal: placed.subtotal,
+            shippingFee: placed.shippingFee,
+            total: placed.total,
+            shippingLabel: placed.shippingLabel,
+            paymentMethod: placed.paymentMethod,
+            items: cart.items.map((item) => ({
+              productName: item.name,
+              quantity: item.quantity,
+              unitPrice: item.price,
+              lineTotal: item.lineTotal,
+            })),
+          },
+          // Read here rather than above, so the order path does not pay for it.
+          await getStore(),
+        );
+      } catch (emailError) {
+        console.error("Could not send the order emails", emailError);
+      }
+    });
   } catch (error) {
     if (error instanceof FieldError) {
       return { status: "error", message: error.message, field: error.field };

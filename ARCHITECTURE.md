@@ -45,6 +45,14 @@ Prisma 7 notes worth knowing before you touch it:
 | `PAYMONGO_SECRET_KEY`                 | Server only. Payment Intents                |
 | `PAYMONGO_PUBLIC_KEY`                 | Payment Methods and attach                  |
 | `PAYMONGO_WEBHOOK_SECRET`             | Endpoint secret, `whsk_...`                 |
+| `RESEND_API_KEY`                      | Server only. Without it, no mail is sent    |
+| `EMAIL_FROM`                          | Sender. Must be on a verified domain        |
+| `CONTACT_TO_EMAIL`                    | Where the shop's own order alert goes       |
+| `SITE_URL`                            | Absolute base URL, for links inside emails  |
+
+Without `RESEND_API_KEY` the app runs normally and sends nothing — deliberately,
+so a missing key is never the reason an order fails. See [Email](#email) for the
+sandbox limit on `EMAIL_FROM`, which will surprise you before a domain is verified.
 
 PayMongo keys are mode-scoped. `sk_test_`/`pk_test_` never touch real money;
 `sk_live_`/`pk_live_` do. Webhook endpoints are scoped the same way, so register a
@@ -95,6 +103,7 @@ app/
   admin/                  force-dynamic, noindex
     login/                sign-in, outside the guarded route group
     (panel)/              everything below is behind the session guard
+    orders/               every order, filterable; [id] confirms and fulfils one
     store/                store details, opening hours, admin credentials
     shipping/             delivery toggle, flat rate, per-location rates
     theme/                colour palette
@@ -256,7 +265,9 @@ are Client Components and would otherwise pull Prisma into the browser bundle.
 | `lib/shipping.ts`          | `lib/shipping-queries.ts`                       |
 | `lib/cart.ts`              | `lib/cart-server.ts`                            |
 | `lib/customer.ts`          | `lib/customer-auth.ts`, `lib/customer-queries.ts` |
+| `lib/orders.ts`            | `lib/order-queries.ts`                          |
 | `lib/nav.ts`               | `lib/auth.ts`, `lib/password.ts`                |
+| `lib/site-url.ts`          | `lib/email.ts`, `lib/order-emails.ts`           |
 
 `lib/customer.ts` earns its place on the left: the checkout form and the sign-up
 panel validate an email, a phone number and a password before submitting, and the
@@ -266,6 +277,20 @@ stricter still — no imports at all, so `proxy.ts` can use it.
 Query logic lives in the `*-queries.ts` modules rather than in `actions.ts` files.
 Actions validate and orchestrate; `saveOrderAddress` sits in
 `lib/customer-queries.ts` even though only checkout calls it, for that reason.
+
+`lib/orders.ts` was split late and the failure is worth recording, because the
+error message points nowhere near the cause. It held both the status labels and
+`getOrderByToken`, so it imported Prisma. The moment a Client Component needed
+`ORDER_TRANSITIONS` as a **runtime value**, the build failed with
+`Module not found: Can't resolve 'dns'`, then `fs`, `net`, `tls` — Prisma being
+dragged into the browser bundle. `import type` would have been erased and stayed
+invisible; a real value is what exposes it. `lib/orders.ts` is now import-free and
+the reads live in `lib/order-queries.ts`.
+
+Note also that `lib/order-queries.ts` carries `generateOrderNumber` and
+`generateAccessToken`, which look pure but are not: the first checks the database
+for collisions, and both need `node:crypto`, which the browser cannot resolve
+either.
 
 The pure modules hold types, defaults, validation, and small helpers. If you add
 a **runtime value** an admin form needs, it belongs on the left.
@@ -329,11 +354,18 @@ Every editor follows the same three-file shape:
 - `*Form.tsx` — Client Component, `useActionState`
 - `actions.ts` — `"use server"`, validates and writes
 
-Shared form furniture is in `app/admin/ui.tsx`, and `app/admin/form-state.ts`
-holds the `AdminFormState` every action returns. `app/admin/sections.ts` drives
-the sidebar and the index page.
+Shared form furniture is in `components/admin/ui.tsx`, and
+`components/admin/form-state.ts` holds the `AdminFormState` every action returns.
+`app/admin/sections.ts` drives both the sidebar and the index page, in three
+groups: `ADMIN_OPERATIONS` (the shop's daily work), `ADMIN_SETTINGS`,
+`ADMIN_CATALOGUE` and `ADMIN_SECTIONS`.
 
-Two patterns to copy rather than reinvent:
+The order screens are the one exception to that shape. They edit no record, so
+there is no `*Form.tsx`: `page.tsx` lists or shows, `StatusControls.tsx` posts a
+transition, `ui.tsx` holds the badge and the date formatting shared by both, and
+`actions.ts` is the same as everywhere else.
+
+Patterns to copy rather than reinvent:
 
 **A `"use server"` file may only export async functions.** Everything it exports
 becomes a callable server reference, and an object cannot be one. Exporting an
@@ -372,6 +404,7 @@ Mutations call `revalidatePath`, which matters because `/` is prerendered:
 | FAQs           | `revalidatePath("/")` plus `revalidatePath("/faqs")`       |
 | Store settings | `revalidatePath("/", "layout")` — footer and page titles    |
 | Shipping       | nothing; only checkout reads it, and that is dynamic        |
+| Order status   | `/admin/orders` and that order's own page — both dynamic     |
 
 The customer-facing account actions follow the same rule: those pages read the
 session so they are dynamic already, and only the address mutations revalidate —
@@ -644,6 +677,131 @@ why the confirmation page also has an "I have paid — check now" button, which 
 the intent directly — the documented alternative to webhooks, and the only way to
 complete a payment locally.
 
+## Admin orders
+
+`/admin/orders` lists every order, newest first. `/admin/orders/<id>` is one order
+in full and is where a manual payment is confirmed.
+
+The list is keyed on the order **id**, not the access token. That is safe here and
+wrong on the storefront: the token exists because the customer-facing page is
+reachable by anyone holding the URL, whereas everything under `/admin` is behind
+`requireAdmin()`. The detail page links out to the customer's own confirmation page
+so the florist can see exactly what the customer sees.
+
+Filtering, search and pagination are plain links and a `GET` form, so the whole
+screen works with no client JavaScript and every view is a shareable URL. Search
+covers the order number, name, email and phone, case-insensitively — a customer
+quoting `ks-260805-k7f3` in lower case should still be found. Pagination is offset
+based rather than cursor based, because the admin needs a total and the ability to
+jump pages, and a florist's order table will not reach the depth where `OFFSET`
+hurts. The count and the rows are built from one shared `where` clause, so the
+total can never disagree with what it is counting.
+
+### Status is a state machine, not a free-form field
+
+`ORDER_TRANSITIONS` in `lib/orders.ts` says which moves are legal:
+
+| From              | To                                          |
+| ----------------- | ------------------------------------------- |
+| `PENDING_PAYMENT` | `PAID`, `CANCELLED`                         |
+| `PAID`            | `FULFILLED`, `PENDING_PAYMENT`, `CANCELLED` |
+| `FULFILLED`       | `PAID` — the undo, nothing else             |
+| `CANCELLED`       | `PENDING_PAYMENT` — reopen                  |
+
+The buttons render from that map, and `setOrderStatus` checks it again. Both, not
+either: a Server Action is a POST endpoint that never loads the admin layout, so
+the page only decides what is *offered*. Verified — a crafted request asking for
+`PENDING_PAYMENT → FULFILLED` is refused and the row is untouched, and every
+attempt without a session cookie is refused by `requireAdmin()`.
+
+Every status can be left, so no order can get stuck, but backwards moves are one
+step rather than arbitrary. `FULFILLED` deliberately cannot go straight to
+`CANCELLED`: the bouquet has gone out, so the honest correction is to step back to
+`PAID` and decide from there.
+
+Two fields are managed rather than merely set:
+
+- **`paidAt` is written once.** It records when money actually arrived, so
+  fulfilling an order and undoing that does not move it. Only stepping back to
+  `PENDING_PAYMENT` clears it, which is the one case where the payment is being
+  declared not to have happened. Without this, a mis-click could overwrite the
+  timestamp of a real payment.
+- **The QR code is cleared** on leaving `PENDING_PAYMENT`, because a spent code
+  left on the row would have the confirmation page keep offering it.
+
+Marking a `PAYMONGO_QRPH` order paid by hand is allowed but warned about on the
+page, since the webhook normally settles those and doing it manually means
+asserting the money arrived without PayMongo saying so.
+
+## Email
+
+One provider, one endpoint: `POST https://api.resend.com/emails`, called with
+`fetch` from `lib/email.ts`. No SDK, matching how `lib/paymongo.ts` talks to
+PayMongo — the entire surface used is a single POST.
+
+`lib/email.ts` puts a message on the wire; `lib/order-emails.ts` decides what the
+messages say. Two rules hold in the first:
+
+- **It never throws into its caller.** Every function returns a result. An order
+  that has been placed must not be lost because a mail provider had a bad minute.
+- **It never blocks indefinitely.** Requests are bounded at eight seconds by
+  `AbortSignal.timeout`, so a hanging Resend call cannot stall a checkout.
+
+### When it sends
+
+Placing an order sends two: a confirmation to the customer and an alert to
+`CONTACT_TO_EMAIL`. Both are scheduled with `after()` from `next/server` rather
+than awaited, so nobody waits on a mail provider to be told their order went
+through.
+
+`after` is the right tool rather than a dangling promise: it survives the response
+being sent on serverless, where an unawaited promise is killed, and it still runs
+when the action ends in a `redirect()` — which `placeOrder` does. The callback has
+its own `try`/`catch` on top of that.
+
+The two messages are sent with `allSettled` because they are independent, and in
+the default configuration the customer's genuinely fails while the store's
+succeeds. That must not be reported as a broken order.
+
+### The markup
+
+Inline styles and a table for the outer frame, because mail clients strip `<style>`
+blocks and Outlook still lays out with tables. A plain-text alternative is always
+built: some clients prefer it, and a message with no text part scores worse with
+spam filters.
+
+**Every interpolated value is escaped.** All of it comes from a customer — name,
+street, delivery notes — and the store's alert is opened in the owner's mail
+client, which makes a delivery note the natural place to try a script tag.
+Verified: `<script>`, an `onerror` image and a quote-breakout in the notes all come
+through inert, while the text part keeps its raw characters because it is not
+markup.
+
+The customer's link is `/orders/<accessToken>`, never the order number, for the
+same reason the page itself is — the number is short enough to guess and the page
+shows a home address.
+
+The palette is hard-coded from `THEME_DEFAULTS` rather than read from the `Theme`
+row, because email cannot use custom properties. Recolouring the site therefore
+does not recolour these.
+
+### The sandbox limit, which will catch you out
+
+Resend sends from a domain you own, and until one is verified **the only recipient
+it accepts is the address on the Resend account**. So with `EMAIL_FROM` left at the
+default `onboarding@resend.dev`:
+
+- the store alert to `CONTACT_TO_EMAIL` arrives, and
+- the customer's confirmation is rejected, visible only as a line in the server log
+
+Confirmed against the live API, which answers with exactly that. Verify a domain
+and point `EMAIL_FROM` at an address on it before this is any use to customers —
+see https://resend.com/docs/add-a-domain.
+
+Also set `SITE_URL`. `lib/site-url.ts` falls back to `VERCEL_URL` and then to
+localhost, so without it a production email either carries an ugly per-deployment
+hostname or a link to the recipient's own machine.
+
 ## Addresses and shipping
 
 Addresses are built from the Philippine Standard Geographic Code via
@@ -736,8 +894,16 @@ small print are in the component. Its form does write to the database.
   telling someone their sign-up worked when it did not, which is worse. Sign-*in*
   gives one message for a missing account and a wrong password alike, so that path
   does not leak.
-- **Customers have no admin screen.** No way to see the list, reset a password, or
-  close an account from `/admin`. Read the rows with `npx prisma studio`.
+- **Customers have no admin screen.** Orders show whether one was placed by an
+  account and name it, but there is no customer list, no way to reset a password and
+  no way to close an account from `/admin`. Read the rows with `npx prisma studio`.
+- **No admin screen edits an order.** Statuses move, but a wrong address, a typo in
+  a phone number or a changed quantity cannot be corrected — that has to go through
+  `npx prisma studio`. Editing money would also need a rule about what happens to a
+  PayMongo intent already issued for the old total.
+- **Nothing is audited.** An order's status history is not recorded, so there is no
+  way to see who marked something paid or when it was cancelled. Only the current
+  status and `paidAt` survive.
 - **Closing an account is not offered.** The cascades are in place and verified,
   but nothing in the UI calls them.
 - **The flat shipping rate is a placeholder.** Nothing in the original site
@@ -769,8 +935,12 @@ small print are in the component. Its form does write to the database.
 - **The webhook endpoint is not registered.** Nothing has been created in the
   PayMongo dashboard yet, so in production payments would only be confirmed by the
   "check now" button. Register it before going live.
-- **Manual payments are confirmed by nobody.** A manual order sits at
-  `PENDING_PAYMENT` forever; there is no admin screen to mark it paid yet.
+- **Nothing tells the customer their order moved on.** Marking an order paid or
+  fulfilled changes the confirmation page but sends no email, so a manual-payment
+  customer has to check the link to learn they are confirmed. The machinery is all
+  there — `sendEmail` and an `after()` hook in the status action would do it — it
+  just has not been wired, because the copy for "paid" and "on its way" has not been
+  written.
 - **`qrph.expired` is acknowledged but ignored.** An expired code leaves the order
   awaiting payment, which is recoverable from the page, but nothing reacts to the
   event itself.
@@ -778,8 +948,22 @@ small print are in the component. Its form does write to the database.
   with test keys, but no code has actually been scanned and paid, so the
   `payment.paid` handling was proven with synthetic signed events rather than a
   genuine delivery. Confirm the signature format against a real one.
-- **No email is sent.** The confirmation page is the only receipt, so the customer
-  has to keep the link. Worth adding before this is used in earnest.
+- **No domain is verified with Resend, so customers get no email.** The order
+  confirmation is built, sent and escaped correctly, but Resend refuses every
+  recipient except the account's own address until `EMAIL_FROM` sits on a verified
+  domain. Until then the confirmation page is still the only receipt the customer
+  has. This is one DNS change away and is the highest-value thing left.
+- **A failed email is only a log line.** There is no retry, no dead-letter record,
+  and nothing in the admin panel showing whether an order's mail went out. If
+  Resend is down for a minute, those confirmations are simply gone.
+- **The emails have not been opened in a real mail client.** The markup is
+  table-based and inline-styled for that reason, and one live send was delivered,
+  but nobody has looked at it in Gmail, Outlook or on a phone.
+- **Order search has no index behind it.** `contains` on four columns is a
+  sequential scan. Fine at a florist's volume, worth revisiting — as a trigram or
+  full-text index — if the table grows into five figures.
+- **Nothing paginates the customer's own order history.** `/account/orders` takes
+  the most recent 50 and stops.
 - **The delivery city is taken on trust.** The fee is resolved from the submitted
   PSGC code, and a customer could pick a cheaper city than the one they actually
   live in. The mismatch is visible in the address on the order, but nothing
@@ -795,7 +979,9 @@ small print are in the component. Its form does write to the database.
   both signed-in and guest checkout is verified over HTTP, but no order has been
   submitted through the real Server Action while signed in. Server Action ids are
   not addressable from a plain HTTP client, so this needs a browser or a real
-  end-to-end runner.
+  end-to-end runner. `setOrderStatus`, `signUp` and `signIn` *were* each driven
+  through their real implementations from a temporary Route Handler, which is the
+  workaround when this comes up again.
 - **A saved address cannot name a different recipient.** Bouquets are usually sent
   to someone else, but `Order` carries one set of contact details, so that needs a
   recipient on the order before it can mean anything on the address.
