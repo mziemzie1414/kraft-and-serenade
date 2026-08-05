@@ -198,6 +198,104 @@ model HeroSection {
   @@map("hero_section")
 }
 
+/// The "Why choose us" section. One row, addressed by a fixed id.
+model WhyChooseUsSection {
+  id String @id
+
+  eyebrow String
+  title   String
+  lede    String
+
+  /// Large photograph of the studio.
+  primaryImageUrl String
+  primaryImageAlt String
+  /// Overlapping thumbnail. Decorative, so it has no alt text.
+  secondaryImageUrl String
+
+  /// The small badge over the collage, e.g. "6" / "Years on Marigold Lane".
+  badgeValue String
+  /// Rendered with `whitespace-pre-line`, so newlines here become line breaks.
+  badgeLabel String
+
+  points WhyChooseUsPoint[]
+  stats  WhyChooseUsStat[]
+
+  updatedAt DateTime @updatedAt
+
+  @@map("why_choose_us_section")
+}
+
+/// A check-marked selling point beside the studio photographs.
+model WhyChooseUsPoint {
+  id    String @id @default(uuid())
+  title String
+  body  String
+
+  position Int
+
+  sectionId String
+  section   WhyChooseUsSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@index([sectionId, position])
+  @@map("why_choose_us_point")
+}
+
+/// One figure in the stat strip below the collage.
+model WhyChooseUsStat {
+  id String @id @default(uuid())
+  /// The figure itself, e.g. "1,240+". Free text, not a number, because these
+  /// are written as copy rather than calculated.
+  value String
+  label String
+
+  position Int
+
+  sectionId String
+  section   WhyChooseUsSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@index([sectionId, position])
+  @@map("why_choose_us_stat")
+}
+
+/// The "How it works" section. One row, addressed by a fixed id.
+model HowItWorksSection {
+  id String @id
+
+  eyebrow String
+  title   String
+  lede    String
+
+  /// The panel below the steps.
+  calloutTitle    String
+  calloutBody     String
+  calloutCtaLabel String
+  calloutCtaHref  String
+
+  steps HowItWorksStep[]
+
+  updatedAt DateTime @updatedAt
+
+  @@map("how_it_works_section")
+}
+
+/// A numbered step. The connector line between steps is drawn from position.
+model HowItWorksStep {
+  id String @id @default(uuid())
+  /// Shown inside the circle, e.g. "01". Free text so it can be styled to
+  /// taste rather than forced to match the position.
+  label String
+  title String
+  body  String
+
+  position Int
+
+  sectionId String
+  section   HowItWorksSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@index([sectionId, position])
+  @@map("how_it_works_step")
+}
+
 /// A single item in the trust bar pinned to the bottom of the Hero.
 model HeroTrustPoint {
   id    String @id @default(uuid())

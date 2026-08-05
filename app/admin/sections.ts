@@ -43,4 +43,15 @@ export const ADMIN_SECTIONS = [
     description:
       "The full-screen opener: headline, buttons, background photo, social proof and the trust bar.",
   },
+  {
+    name: "Why choose us",
+    href: "/admin/why-choose-us",
+    description:
+      "Studio photographs, the selling points beside them, and the stat strip below.",
+  },
+  {
+    name: "How it works",
+    href: "/admin/how-it-works",
+    description: "The four numbered steps and the callout panel under them.",
+  },
 ] as const;

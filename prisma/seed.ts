@@ -1,8 +1,10 @@
 import "dotenv/config";
 import { BEST_SELLERS, CATEGORIES, FEATURED_PRODUCTS, OCCASIONS } from "../lib/data";
 import { HERO_DEFAULTS, HERO_ID } from "../lib/hero";
+import { HOW_IT_WORKS_DEFAULTS, HOW_IT_WORKS_ID } from "../lib/how-it-works";
 import { prisma } from "../lib/prisma";
 import { THEME_DEFAULTS, THEME_ID } from "../lib/theme";
+import { WHY_CHOOSE_US_DEFAULTS, WHY_CHOOSE_US_ID } from "../lib/why-choose-us";
 
 /**
  * Product body copy, keyed by slug.
@@ -37,6 +39,58 @@ const PRODUCT_DESCRIPTIONS: Record<string, string> = {
   "single-stem-rose":
     "One pink rose in a slim glass vase. Our go-to for small apologies and small victories, and the only thing on the shelf under a thousand pesos.",
 };
+
+/** The "Why choose us" and "How it works" sections, both singletons with lists. */
+async function seedSections() {
+  const { points, stats, ...whyChooseUs } = WHY_CHOOSE_US_DEFAULTS;
+
+  await prisma.whyChooseUsSection.upsert({
+    where: { id: WHY_CHOOSE_US_ID },
+    create: { id: WHY_CHOOSE_US_ID, ...whyChooseUs },
+    update: whyChooseUs,
+  });
+
+  await prisma.whyChooseUsPoint.deleteMany({
+    where: { sectionId: WHY_CHOOSE_US_ID },
+  });
+  await prisma.whyChooseUsPoint.createMany({
+    data: points.map((point, index) => ({
+      ...point,
+      position: index,
+      sectionId: WHY_CHOOSE_US_ID,
+    })),
+  });
+
+  await prisma.whyChooseUsStat.deleteMany({
+    where: { sectionId: WHY_CHOOSE_US_ID },
+  });
+  await prisma.whyChooseUsStat.createMany({
+    data: stats.map((stat, index) => ({
+      ...stat,
+      position: index,
+      sectionId: WHY_CHOOSE_US_ID,
+    })),
+  });
+
+  const { steps, ...howItWorks } = HOW_IT_WORKS_DEFAULTS;
+
+  await prisma.howItWorksSection.upsert({
+    where: { id: HOW_IT_WORKS_ID },
+    create: { id: HOW_IT_WORKS_ID, ...howItWorks },
+    update: howItWorks,
+  });
+
+  await prisma.howItWorksStep.deleteMany({
+    where: { sectionId: HOW_IT_WORKS_ID },
+  });
+  await prisma.howItWorksStep.createMany({
+    data: steps.map((step, index) => ({
+      ...step,
+      position: index,
+      sectionId: HOW_IT_WORKS_ID,
+    })),
+  });
+}
 
 /** The landing-page singletons: colour palette and Hero content. */
 async function seedSiteContent() {
@@ -202,10 +256,11 @@ async function seedCatalog() {
  */
 async function main() {
   await seedSiteContent();
+  await seedSections();
   const counts = await seedCatalog();
 
   console.log(
-    `Seeded theme, hero_section, hero_trust_point, ${counts.categories} categories, ` +
+    `Seeded theme, hero, why-choose-us, how-it-works, ${counts.categories} categories, ` +
       `${counts.products} products and ${counts.occasions} occasions.`,
   );
 }

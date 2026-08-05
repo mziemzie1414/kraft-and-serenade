@@ -72,6 +72,8 @@ app/
   admin/                  editing UI, force-dynamic, noindex
     theme/                colour palette
     hero/                 hero section
+    why-choose-us/        studio photos, selling points, stat strip
+    how-it-works/         numbered steps and callout
     categories/           list, new, [id]
     products/             list, new, [id]
     occasions/            list, new, [id]
@@ -88,13 +90,26 @@ two can never disagree about what the shop contains.
 
 ## Data model
 
-`prisma/schema.prisma`. Five migrations so far: `hero_section`, `theme`,
-`catalog`, `best_seller_rank`, `occasion`.
+`prisma/schema.prisma`. Six migrations so far: `hero_section`, `theme`,
+`catalog`, `best_seller_rank`, `occasion`,
+`why_choose_us_and_how_it_works`.
 
-**Singletons.** `Theme` and `HeroSection` each hold exactly one row, addressed by
-a fixed id (`"theme"`, `"hero"`). A known id keeps reads and the admin upsert
-trivial, with no "which row is live?" question to answer. `HeroTrustPoint` is an
-ordered child list of `HeroSection`.
+**Singletons.** `Theme`, `HeroSection`, `WhyChooseUsSection` and
+`HowItWorksSection` each hold exactly one row, addressed by a fixed id
+(`"theme"`, `"hero"`, `"why-choose-us"`, `"how-it-works"`). A known id keeps reads
+and the admin upsert trivial, with no "which row is live?" question to answer.
+
+Each of those has ordered child lists, cascading on delete:
+
+| Section              | Children                                  |
+| -------------------- | ----------------------------------------- |
+| `HeroSection`        | `HeroTrustPoint`                          |
+| `WhyChooseUsSection` | `WhyChooseUsPoint`, `WhyChooseUsStat`     |
+| `HowItWorksSection`  | `HowItWorksStep`                          |
+
+Child lists are replaced wholesale on save — delete all, then re-create from the
+submitted rows inside one transaction — so `position` is always a dense
+`0..n` and reordering needs no diffing.
 
 **Catalogue.** `Category` has many `Product`. `Occasion` optionally points at one
 `Category`.
@@ -149,7 +164,12 @@ are Client Components and would otherwise pull Prisma into the browser bundle.
 | `lib/nav.ts`               |                           |
 
 The pure modules hold types, defaults, validation, and small helpers. If you add
-a constant that an admin form needs, it belongs on the left.
+a **runtime value** an admin form needs, it belongs on the left.
+
+`lib/why-choose-us.ts` and `lib/how-it-works.ts` are not split, because their
+forms need only types from them, and `import type` is erased at compile time so
+Prisma never reaches the bundle. Split them the moment a form needs a real value
+out of one.
 
 `lib/data.ts` is the original hard-coded content. It is still the source for the
 sections listed below, and the seed script reads it to populate the database.
@@ -181,13 +201,15 @@ returns `{ state, redirectTo }`, and `redirect()` is called after the
 
 Mutations call `revalidatePath`, which matters because `/` is prerendered:
 
-| Changed    | Revalidates                                          |
-| ---------- | ---------------------------------------------------- |
-| Theme      | `revalidatePath("/", "layout")` — it is in the root layout |
-| Hero       | `revalidatePath("/")`                                |
-| Categories | `revalidatePath("/", "layout")` — they are in the chrome   |
-| Products   | `revalidatePath("/", "layout")` plus the product's own page |
-| Occasions  | `revalidatePath("/")`                                |
+| Changed        | Revalidates                                                |
+| -------------- | ---------------------------------------------------------- |
+| Theme          | `revalidatePath("/", "layout")` — it is in the root layout  |
+| Hero           | `revalidatePath("/")`                                      |
+| Categories     | `revalidatePath("/", "layout")` — they are in the chrome    |
+| Products       | `revalidatePath("/", "layout")` plus the product's own page |
+| Occasions      | `revalidatePath("/")`                                      |
+| Why choose us  | `revalidatePath("/")`                                      |
+| How it works   | `revalidatePath("/")`                                      |
 
 ## Images
 
@@ -207,8 +229,6 @@ These sections read `lib/data.ts` and have no admin page yet:
 
 | Section             | Constant         |
 | ------------------- | ---------------- |
-| `WhyChooseUs`       | `WHY_CHOOSE_US`  |
-| `HowItWorks`        | `HOW_IT_WORKS`   |
 | `CustomerReviews`   | `REVIEWS`        |
 | `InstagramGallery`  | `GALLERY_IMAGES` |
 | `FaqSection`        | `FAQS`           |

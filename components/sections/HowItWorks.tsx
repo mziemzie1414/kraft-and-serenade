@@ -1,9 +1,11 @@
 import Link from "next/link";
-import { HOW_IT_WORKS } from "@/lib/data";
 import { ArrowRightIcon } from "@/components/ui/Icons";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { getHowItWorksContent } from "@/lib/how-it-works";
 
-export function HowItWorks() {
+export async function HowItWorks() {
+  const content = await getHowItWorksContent();
+
   return (
     <section
       id="how-it-works"
@@ -11,17 +13,17 @@ export function HowItWorks() {
     >
       <div className="container-page">
         <SectionHeading
-          eyebrow="How it works"
-          title="Four steps, no phone tag"
-          lede="From picking a bouquet to a photo of it in someone's hands. Most orders take under five minutes to place."
+          eyebrow={content.eyebrow}
+          title={content.title}
+          lede={content.lede}
           tone="light"
         />
 
         <ol className="mt-14 grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
-          {HOW_IT_WORKS.map((item, index) => (
-            <li key={item.step} className="relative">
+          {content.steps.map((step, index) => (
+            <li key={step.label} className="relative">
               {/* Connector line between steps on desktop. Decorative. */}
-              {index < HOW_IT_WORKS.length - 1 ? (
+              {index < content.steps.length - 1 ? (
                 <span
                   aria-hidden
                   className="absolute top-6 left-14 hidden h-px w-[calc(100%-2.5rem)] bg-gradient-to-r from-canvas/25 to-transparent lg:block"
@@ -29,14 +31,14 @@ export function HowItWorks() {
               ) : null}
 
               <span className="relative inline-flex h-12 w-12 items-center justify-center rounded-full border border-canvas/25 bg-moss-700 font-display text-sm font-semibold text-blush-300">
-                {item.step}
+                {step.label}
               </span>
 
               <h3 className="mt-5 font-display text-lg leading-snug font-medium text-canvas">
-                {item.title}
+                {step.title}
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-canvas/65">
-                {item.body}
+                {step.body}
               </p>
             </li>
           ))}
@@ -45,17 +47,15 @@ export function HowItWorks() {
         <div className="mt-14 flex flex-col items-start gap-4 rounded-2xl border border-canvas/15 bg-canvas/5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
           <div>
             <h3 className="font-display text-xl font-medium text-canvas">
-              Need something for tomorrow morning?
+              {content.calloutTitle}
             </h3>
-            <p className="mt-1.5 text-sm text-canvas/65">
-              Order before 1:00 PM for same-day, or any time for next-day delivery.
-            </p>
+            <p className="mt-1.5 text-sm text-canvas/65">{content.calloutBody}</p>
           </div>
           <Link
-            href="#featured"
+            href={content.calloutCtaHref}
             className="group inline-flex shrink-0 items-center gap-2 rounded-full bg-canvas px-6 py-3.5 text-sm font-semibold text-ink transition-colors duration-300 hover:bg-blush-100"
           >
-            Start an order
+            {content.calloutCtaLabel}
             <ArrowRightIcon className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
           </Link>
         </div>
