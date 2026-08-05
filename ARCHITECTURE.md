@@ -71,6 +71,8 @@ app/
     products/[slug]/      product detail
     faqs/                 every question, not just the home page selection
     cart/                 static shell, contents priced client-side
+    checkout/             address, shipping fee, order creation
+    orders/[token]/       confirmation, keyed on an unguessable token
     newsletter-actions.ts the only Server Action on the public site
   api/cart/               the cart, priced from the database
   api/psgc/               location lookups for the cascading address selects
@@ -103,10 +105,10 @@ two can never disagree about what the shop contains.
 
 ## Data model
 
-`prisma/schema.prisma`. Ten migrations so far: `hero_section`, `theme`,
+`prisma/schema.prisma`. Eleven migrations so far: `hero_section`, `theme`,
 `catalog`, `best_seller_rank`, `occasion`, `why_choose_us_and_how_it_works`,
 `reviews_gallery_promo`, `faq_and_newsletter`,
-`store_settings_and_admin_auth`, `shipping`.
+`store_settings_and_admin_auth`, `shipping`, `orders`.
 
 **Singletons.** Each landing-page section holds exactly one row, addressed by a
 fixed id. A known id keeps reads and the admin upsert trivial, with no "which row
@@ -189,6 +191,8 @@ are Client Components and would otherwise pull Prisma into the browser bundle.
 | `lib/hero.ts`              | `lib/hero-queries.ts`     |
 | `lib/theme.ts`             | `lib/theme-queries.ts`    |
 | `lib/catalog.ts`           | `lib/catalog-queries.ts`  |
+| `lib/shipping.ts`          | `lib/shipping-queries.ts` |
+| `lib/cart.ts`              | `lib/cart-server.ts`      |
 | `lib/nav.ts`               |                           |
 
 The pure modules hold types, defaults, validation, and small helpers. If you add
@@ -332,6 +336,42 @@ Add-to-cart lives on the product page only. `ProductCard`'s bag icon is
 decorative: the card uses a stretched link so the whole tile is one tab stop, and
 putting a button inside that would add a second stop per tile.
 
+## Checkout and orders
+
+Guests can order; no account is needed. `/checkout` reads the cart cookie
+**server-side** — unlike the cart page, which prices client-side — because
+checkout is dynamic anyway and the summary the customer confirms should come from
+the same data the order is built from.
+
+`placeOrder` in `app/(site)/checkout/actions.ts` recalculates everything:
+
+- the cart is re-read from the cookie and re-priced with `hydrateCart`
+- the delivery fee is re-resolved with `resolveShippingFee` from the submitted
+  PSGC codes
+
+Nothing about money is read from the form. Verified: posting `subtotal`,
+`total` and `shippingFee` alongside a valid order changes none of them.
+
+`OrderItem` copies the product name, slug, image and unit price at the time of
+purchase. The relation to `Product` is `onDelete: SetNull`, so deleting a product
+does not destroy order history. Verified: changing a product's price afterwards
+leaves the recorded `unitPrice` untouched.
+
+**Order numbers and access tokens are different things, on purpose.**
+
+`orderNumber` is short and readable — `KS-260805-K7F3` — because customers quote
+it when paying manually. Its alphabet leaves out `I L O U 0 1`, the characters
+people misread when reading one out. Being short also makes it guessable, and the
+confirmation page shows a name, phone number and home address. So the page is
+keyed on `accessToken`, a 48-character random hex string, and `/orders/<number>`
+404s. Verified both ways.
+
+Orders start at `PENDING_PAYMENT`. For manual payment the confirmation page shows
+the store's QR code, the order number, and a link to the Facebook page — all from
+`/admin/store`. A QR code is optional: without one, manual payment still works off
+the order number and the Facebook page, so the store is never left with no way to
+take an order.
+
 ## Addresses and shipping
 
 Addresses are built from the Philippine Standard Geographic Code via
@@ -436,10 +476,19 @@ small print are in the component. Its form does write to the database.
   mean a table keyed on `Product` and deriving those two figures from it.
 - **The gallery has no real Instagram link.** `GallerySection.ctaHref` is seeded
   as `#gallery`; set the actual profile URL in `/admin/gallery`.
-- **No checkout yet.** The cart's Checkout button points at `/checkout`, which
-  does not exist — it is the next thing to build.
-- **The cart's interactive parts are not browser-tested.** Pricing, cookie
-  handling and tamper-resistance are covered server-side, but the steppers, badge
-  and hydration have only been reasoned about, not clicked.
+- **PayMongo is not wired up.** The option is shown at checkout but disabled, and
+  `PaymentMethod.PAYMONGO_QRPH` is unused. Manual payment is the only live method.
+- **Nothing marks an order as paid.** `OrderStatus` has the states but there is no
+  admin screen to move an order through them yet.
+- **No email is sent.** The confirmation page is the only receipt, so the customer
+  has to keep the link. Worth adding before this is used in earnest.
+- **The delivery city is taken on trust.** The fee is resolved from the submitted
+  PSGC code, and a customer could pick a cheaper city than the one they actually
+  live in. The mismatch is visible in the address on the order, but nothing
+  cross-checks it.
+- **The cart's and checkout's interactive parts are not browser-tested.** Pricing,
+  validation and tamper-resistance are covered server-side, but the steppers,
+  badge, hydration and cascading address selects have been reasoned about rather
+  than clicked.
 - **Two categories have no products.** Graduation and Money Bouquets, because the
   original hard-coded data had none. They render an empty state.

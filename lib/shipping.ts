@@ -1,4 +1,10 @@
-import { prisma } from "./prisma";
+/**
+ * Shipping configuration and fee resolution.
+ *
+ * Kept free of database imports so the checkout form can compute the fee as the
+ * customer picks their address, with no round trip. Reads live in
+ * `lib/shipping-queries.ts`.
+ */
 
 /** One row, addressed by a fixed id. */
 export const SHIPPING_ID = "shipping";
@@ -27,37 +33,12 @@ export const SHIPPING_DEFAULTS: Omit<ShippingContent, "rates"> = {
   flatRate: 150,
 };
 
-/** The stored row, or `null` if it has not been created yet. */
-export async function getShippingRecord() {
-  return prisma.shippingSettings.findUnique({
-    where: { id: SHIPPING_ID },
-    include: { rates: { orderBy: [{ scope: "asc" }, { label: "asc" }] } },
-  });
-}
-
-/** Reads the live shipping configuration, falling back to the defaults. */
-export async function getShipping(): Promise<ShippingContent> {
-  const record = await getShippingRecord();
-
-  if (!record) return { ...SHIPPING_DEFAULTS, rates: [] };
-
-  return {
-    isEnabled: record.isEnabled,
-    flatRate: record.flatRate,
-    rates: record.rates.map((rate) => ({
-      id: rate.id,
-      scope: rate.scope,
-      psgcCode: rate.psgcCode,
-      label: rate.label,
-      fee: rate.fee,
-    })),
-  };
-}
+export type ShippingBasis = "DISABLED" | "CITY" | "REGION" | "FLAT";
 
 export type ResolvedShipping = {
   fee: number;
   /** Which rule produced the fee, for display and for storing on the order. */
-  basis: "DISABLED" | "CITY" | "REGION" | "FLAT";
+  basis: ShippingBasis;
   label: string;
 };
 
@@ -67,6 +48,10 @@ export type ResolvedShipping = {
  * A city rate wins over a region rate, and the flat rate is the fallback. That
  * order is the whole point of the table: a region can be priced broadly and then
  * individual cities corrected without unpicking anything.
+ *
+ * The checkout form calls this for the live figure and the order action calls it
+ * again on the server, so the customer is never charged a fee the browser
+ * proposed.
  */
 export function resolveShippingFee(
   shipping: ShippingContent,

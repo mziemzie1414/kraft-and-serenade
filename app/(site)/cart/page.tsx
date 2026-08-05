@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { formatPrice } from "@/lib/data";
-import { getShipping } from "@/lib/shipping";
+import { getShipping } from "@/lib/shipping-queries";
 import { CartContents } from "./CartContents";
 
 export const metadata: Metadata = {

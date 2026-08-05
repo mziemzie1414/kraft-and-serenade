@@ -1,5 +1,5 @@
 import { formatPrice } from "@/lib/data";
-import { getShipping, getShippingRecord } from "@/lib/shipping";
+import { getShipping, getShippingRecord } from "@/lib/shipping-queries";
 import { ShippingForm } from "./ShippingForm";
 
 export default async function AdminShippingPage() {

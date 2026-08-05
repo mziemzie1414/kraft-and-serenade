@@ -150,6 +150,8 @@ model Product {
   /// products should fail loudly instead of silently binning the products.
   category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
+  orderItems OrderItem[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -414,6 +416,106 @@ model PromoBannerSection {
 enum ShippingScope {
   REGION
   CITY
+}
+
+enum PaymentMethod {
+  /// Admin-uploaded QR code; the customer messages the order number over.
+  MANUAL
+  /// PayMongo QR Ph.
+  PAYMONGO_QRPH
+}
+
+enum OrderStatus {
+  /// Placed, not yet paid for.
+  PENDING_PAYMENT
+  PAID
+  /// Built and handed to the courier.
+  FULFILLED
+  CANCELLED
+}
+
+/// A placed order.
+///
+/// Everything about the products is copied onto `OrderItem` rather than read
+/// through the relation, so an order is a permanent record of what was bought at
+/// what price even after the catalogue changes.
+model Order {
+  id String @id @default(uuid())
+
+  /// Short and human-readable, e.g. `KS-260805-K7F3`. This is what the customer
+  /// quotes to the store, so it is easy to read out and type.
+  orderNumber String @unique
+
+  /// Unguessable, and what the confirmation URL uses.
+  ///
+  /// The order number is deliberately short, which makes it guessable — and the
+  /// confirmation page shows a name, phone number and home address. So the page
+  /// is keyed on this instead.
+  accessToken String @unique
+
+  customerName  String
+  customerEmail String
+  customerPhone String
+
+  /// PSGC codes and the names as chosen, so the address stays readable without
+  /// calling the API again.
+  regionCode   String
+  regionName   String
+  provinceCode String
+  provinceName String
+  cityCode     String
+  cityName     String
+  barangay     String
+  street       String
+  postalCode   String
+
+  deliveryNotes String?
+
+  /// All whole pesos, calculated server-side when the order was placed.
+  subtotal    Int
+  shippingFee Int
+  total       Int
+
+  /// Which rule produced the shipping fee, kept so the admin can see why.
+  shippingBasis String
+  shippingLabel String
+
+  paymentMethod PaymentMethod
+  status        OrderStatus   @default(PENDING_PAYMENT)
+
+  items OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([createdAt])
+  @@map("order")
+}
+
+/// One line of an order, with the product details copied in.
+model OrderItem {
+  id String @id @default(uuid())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  /// Nulled rather than blocking if the product is later deleted; the snapshot
+  /// below is what the order actually records.
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  productName String
+  productSlug String
+  imageUrl    String
+
+  /// Whole pesos, as charged at the time.
+  unitPrice Int
+  quantity  Int
+  lineTotal Int
+
+  @@index([orderId])
+  @@map("order_item")
 }
 
 /// Delivery charging. One row, addressed by a fixed id.
