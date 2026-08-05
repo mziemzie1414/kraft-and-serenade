@@ -28,6 +28,8 @@ export type ProductDraft = {
   reviewCount: number | "";
   badge: string;
   isFeatured: boolean;
+  /** Empty string when the product is not in the Best Sellers chart. */
+  bestSellerRank: number | "";
   position: number;
 };
 
@@ -207,8 +209,23 @@ export function ProductForm({
             defaultChecked={product.isFeatured}
             className="h-4 w-4 accent-moss-700"
           />
-          Featured bouquet
+          Show in Featured Bouquets on the home page
         </label>
+
+        <Field
+          label="Best seller rank"
+          hint="1 is the large lead tile. Leave blank to keep it out of the Best Sellers chart."
+        >
+          <input
+            name="bestSellerRank"
+            type="number"
+            min={1}
+            step={1}
+            defaultValue={product.bestSellerRank}
+            placeholder="Not a best seller"
+            className={inputClass}
+          />
+        </Field>
       </Fieldset>
 
       <div className="flex flex-wrap items-center gap-4">

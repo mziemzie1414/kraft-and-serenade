@@ -46,6 +46,7 @@ export default async function EditProductPage({
           reviewCount: product.reviewCount,
           badge: product.badge ?? "",
           isFeatured: product.isFeatured,
+          bestSellerRank: product.bestSellerRank ?? "",
           position: product.position,
         }}
       />

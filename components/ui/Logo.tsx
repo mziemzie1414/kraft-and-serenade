@@ -6,7 +6,7 @@ import { BRAND } from "@/lib/data";
  * broken image, and it inherits the surrounding text colour.
  */
 export function Logo({
-  href = "#top",
+  href = "/",
   tone = "ink",
   className = "",
 }: {
@@ -20,7 +20,7 @@ export function Logo({
   return (
     <Link
       href={href}
-      aria-label={`${BRAND.name} — back to top`}
+      aria-label={`${BRAND.name} — home`}
       className={`group inline-flex items-center gap-2.5 ${className}`}
     >
       <svg

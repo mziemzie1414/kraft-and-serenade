@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BRAND, BUSINESS_HOURS, CATEGORIES } from "@/lib/data";
+import { BRAND, BUSINESS_HOURS } from "@/lib/data";
 import {
   ClockIcon,
   FacebookIcon,
@@ -11,35 +11,35 @@ import {
   TiktokIcon,
 } from "@/components/ui/Icons";
 import { Logo } from "@/components/ui/Logo";
+import { categoryHref, type NavCategory } from "@/lib/nav";
 
 const SHOP_LINKS = [
-  { label: "Featured bouquets", href: "#featured" },
-  { label: "Best sellers", href: "#best-sellers" },
-  { label: "Shop by occasion", href: "#occasions" },
-  { label: "Shop by category", href: "#shop-by-category" },
-  { label: "Current promo", href: "#promo" },
+  { label: "Featured bouquets", href: "/#featured" },
+  { label: "Best sellers", href: "/#best-sellers" },
+  { label: "Shop by occasion", href: "/#occasions" },
+  { label: "Shop by category", href: "/#shop-by-category" },
+  { label: "Current promo", href: "/#promo" },
 ];
 
 const COMPANY_LINKS = [
-  { label: "About the studio", href: "#about" },
-  { label: "How it works", href: "#how-it-works" },
-  { label: "Customer reviews", href: "#reviews" },
-  { label: "FAQs", href: "#faqs" },
-  { label: "Contact", href: "#contact" },
+  { label: "About the studio", href: "/#about" },
+  { label: "How it works", href: "/#how-it-works" },
+  { label: "Customer reviews", href: "/#reviews" },
+  { label: "FAQs", href: "/#faqs" },
+  { label: "Contact", href: "/#contact" },
 ];
 
 const SOCIALS = [
-  { label: "Instagram", href: "#gallery", Icon: InstagramIcon },
-  { label: "Facebook", href: "#gallery", Icon: FacebookIcon },
-  { label: "TikTok", href: "#gallery", Icon: TiktokIcon },
-  { label: "Pinterest", href: "#gallery", Icon: PinterestIcon },
+  { label: "Instagram", href: "/#gallery", Icon: InstagramIcon },
+  { label: "Facebook", href: "/#gallery", Icon: FacebookIcon },
+  { label: "TikTok", href: "/#gallery", Icon: TiktokIcon },
+  { label: "Pinterest", href: "/#gallery", Icon: PinterestIcon },
 ];
 
-/** Top six categories, so the footer stays scannable instead of listing all ten. */
-const FOOTER_CATEGORIES = CATEGORIES.slice(0, 6);
-
-export function Footer() {
+export function Footer({ categories }: { categories: NavCategory[] }) {
   const year = new Date().getFullYear();
+  // Top six only, so the footer stays scannable rather than listing every one.
+  const footerCategories = categories.slice(0, 6);
 
   return (
     <footer id="contact" className="scroll-mt-24 bg-moss-900 text-canvas">
@@ -99,10 +99,10 @@ export function Footer() {
                 Bouquets
               </h2>
               <ul className="mt-4 space-y-2.5">
-                {FOOTER_CATEGORIES.map((category) => (
+                {footerCategories.map((category) => (
                   <li key={category.slug}>
                     <Link
-                      href={`#category-${category.slug}`}
+                      href={categoryHref(category.slug)}
                       className="text-sm text-canvas/65 transition-colors duration-300 hover:text-canvas"
                     >
                       {category.shortName}
@@ -197,7 +197,7 @@ export function Footer() {
             {["Privacy policy", "Terms of service", "Delivery policy"].map((label) => (
               <li key={label}>
                 <Link
-                  href="#top"
+                  href="/"
                   className="text-xs text-canvas/45 transition-colors duration-300 hover:text-canvas/80"
                 >
                   {label}

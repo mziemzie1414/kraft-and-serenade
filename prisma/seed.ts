@@ -94,11 +94,21 @@ async function seedCatalog() {
   const categoryIdByName = new Map(categories.map((row) => [row.name, row.id]));
 
   const products = [
-    ...FEATURED_PRODUCTS.map((product) => ({ product, isFeatured: true })),
-    ...BEST_SELLERS.map((product) => ({ product, isFeatured: false })),
+    ...FEATURED_PRODUCTS.map((product) => ({
+      product,
+      isFeatured: true,
+      bestSellerRank: null,
+    })),
+    // BEST_SELLERS was already in chart order, so the array index becomes the
+    // rank. The landing section renders 1 as the lead tile and 2+ as the list.
+    ...BEST_SELLERS.map((product, index) => ({
+      product,
+      isFeatured: false,
+      bestSellerRank: index + 1,
+    })),
   ];
 
-  for (const [index, { product, isFeatured }] of products.entries()) {
+  for (const [index, { product, isFeatured, bestSellerRank }] of products.entries()) {
     const categoryId = categoryIdByName.get(product.category);
 
     if (!categoryId) {
@@ -124,6 +134,7 @@ async function seedCatalog() {
       reviewCount: product.reviewCount,
       badge: product.badge ?? null,
       isFeatured,
+      bestSellerRank,
       position: index,
       categoryId,
     };

@@ -40,6 +40,27 @@ export async function getProductBySlug(slug: string) {
   });
 }
 
+/** The Featured Bouquets section, in display order. */
+export async function listFeaturedProducts() {
+  return prisma.product.findMany({
+    where: { isFeatured: true },
+    orderBy: [{ position: "asc" }, { name: "asc" }],
+    include: { category: true },
+  });
+}
+
+/**
+ * The Best Sellers chart, top first. Rank is curated in the admin panel rather
+ * than derived from orders, since there are no orders yet.
+ */
+export async function listBestSellers() {
+  return prisma.product.findMany({
+    where: { bestSellerRank: { not: null } },
+    orderBy: [{ bestSellerRank: "asc" }, { name: "asc" }],
+    include: { category: true },
+  });
+}
+
 /**
  * Adapts a stored product to the shape `ProductCard` renders. The card predates
  * the database and is still used by the hard-coded landing sections, so the

@@ -43,6 +43,7 @@ export default async function NewProductPage() {
             reviewCount: 0,
             badge: "",
             isFeatured: false,
+            bestSellerRank: "",
             position: count,
           }}
         />

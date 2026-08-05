@@ -2,25 +2,25 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { CATEGORIES } from "@/lib/data";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDownIcon, CloseIcon, MenuIcon, SearchIcon, BagIcon } from "@/components/ui/Icons";
 import { Logo } from "@/components/ui/Logo";
+import { categoryHref, type NavCategory } from "@/lib/nav";
 
 type NavLink = { label: string; href: string };
 
 const NAV_LINKS: NavLink[] = [
   { label: "Home", href: "/" },
   { label: "Products", href: "/products" },
-  { label: "FAQs", href: "#faqs" },
-  { label: "Contact", href: "#contact" },
-  { label: "About", href: "#about" },
+  { label: "FAQs", href: "/#faqs" },
+  { label: "Contact", href: "/#contact" },
+  { label: "About", href: "/#about" },
 ];
 
-/** The first three categories get a thumbnail in the mega-menu's promo rail. */
-const PROMO_CATEGORIES = CATEGORIES.slice(0, 3);
+export function Navbar({ categories }: { categories: NavCategory[] }) {
+  /** The first three categories get a thumbnail in the mega-menu's promo rail. */
+  const promoCategories = categories.slice(0, 3);
 
-export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [desktopDropdownOpen, setDesktopDropdownOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -78,22 +78,25 @@ export function Navbar() {
     if (closeTimer.current) clearTimeout(closeTimer.current);
   }, []);
 
+  /* These close over nothing but refs and state setters, all of which are
+     stable, so they are left to the React Compiler to memoize. */
+
   /* A short close delay stops the menu flickering shut when the pointer
      crosses the gap between the trigger and the panel. */
-  const openDropdown = useCallback(() => {
+  function openDropdown() {
     if (closeTimer.current) clearTimeout(closeTimer.current);
     setDesktopDropdownOpen(true);
-  }, []);
+  }
 
-  const scheduleCloseDropdown = useCallback(() => {
+  function scheduleCloseDropdown() {
     if (closeTimer.current) clearTimeout(closeTimer.current);
     closeTimer.current = setTimeout(() => setDesktopDropdownOpen(false), 120);
-  }, []);
+  }
 
-  const closeMobile = useCallback(() => {
+  function closeMobile() {
     setMobileOpen(false);
     setMobileProductsOpen(false);
-  }, []);
+  }
 
   /* Over the hero the header is transparent, so links need light text. */
   const onDark = !scrolled && !mobileOpen;
@@ -180,16 +183,16 @@ export function Navbar() {
                             Shop bouquets by type
                           </p>
                           <ul className="grid grid-cols-2 gap-x-4 gap-y-1">
-                            {CATEGORIES.map((category) => (
+                            {categories.map((category) => (
                               <li key={category.slug}>
                                 <Link
-                                  href={`/products?category=${category.slug}`}
+                                  href={categoryHref(category.slug)}
                                   onClick={() => setDesktopDropdownOpen(false)}
                                   className="group flex items-baseline justify-between gap-2 rounded-lg px-3 py-2 text-sm text-ink-soft transition-colors duration-200 hover:bg-moss-50 hover:text-moss-700"
                                 >
                                   <span>{category.shortName}</span>
                                   <span className="text-[0.65rem] text-ink-faint transition-colors group-hover:text-moss-400">
-                                    {category.itemCount}
+                                    {category.productCount}
                                   </span>
                                 </Link>
                               </li>
@@ -203,16 +206,16 @@ export function Navbar() {
                             Popular now
                           </p>
                           <ul className="space-y-2.5">
-                            {PROMO_CATEGORIES.map((category) => (
+                            {promoCategories.map((category) => (
                               <li key={category.slug}>
                                 <Link
-                                  href={`/products?category=${category.slug}`}
+                                  href={categoryHref(category.slug)}
                                   onClick={() => setDesktopDropdownOpen(false)}
                                   className="flex items-center gap-3 rounded-xl p-1.5 transition-colors duration-200 hover:bg-canvas"
                                 >
                                   <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-canvas-deep">
                                     <Image
-                                      src={category.image}
+                                      src={category.imageUrl}
                                       alt=""
                                       fill
                                       sizes="48px"
@@ -224,7 +227,7 @@ export function Navbar() {
                                       {category.shortName}
                                     </span>
                                     <span className="block truncate text-xs text-ink-faint">
-                                      {category.itemCount} designs
+                                      {category.productCount} designs
                                     </span>
                                   </span>
                                 </Link>
@@ -260,7 +263,7 @@ export function Navbar() {
             </button>
 
             <Link
-              href="#featured"
+              href="/products"
               className="ml-1 hidden rounded-full bg-moss-700 px-5 py-2.5 text-sm font-medium text-canvas transition-colors duration-300 hover:bg-moss-900 lg:inline-flex"
             >
               Order now
@@ -329,16 +332,16 @@ export function Navbar() {
                   className="pb-2"
                 >
                   <ul className="flex flex-col gap-0.5 border-l-2 border-blush-100 pl-3">
-                    {CATEGORIES.map((category) => (
+                    {categories.map((category) => (
                       <li key={category.slug}>
                         <Link
-                          href={`/products?category=${category.slug}`}
+                          href={categoryHref(category.slug)}
                           onClick={closeMobile}
                           className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2.5 text-sm text-ink-soft"
                         >
                           <span>{category.name}</span>
                           <span className="text-[0.7rem] text-ink-faint">
-                            {category.itemCount}
+                            {category.productCount}
                           </span>
                         </Link>
                       </li>
@@ -352,7 +355,7 @@ export function Navbar() {
 
         <div className="container-page pb-6">
           <Link
-            href="#featured"
+            href="/products"
             onClick={closeMobile}
             className="flex w-full items-center justify-center rounded-full bg-moss-700 px-5 py-3.5 text-sm font-medium text-canvas"
           >

@@ -116,6 +116,11 @@ export default async function AdminProductsPage({
                         Featured
                       </span>
                     ) : null}
+                    {product.bestSellerRank !== null ? (
+                      <span className="rounded-full bg-moss-100 px-2 py-0.5 text-[0.65rem] font-semibold tracking-wide text-moss-700 uppercase">
+                        Best seller #{product.bestSellerRank}
+                      </span>
+                    ) : null}
                   </span>
                   <span className="mt-0.5 block truncate text-xs text-ink-faint">
                     {product.category.name}

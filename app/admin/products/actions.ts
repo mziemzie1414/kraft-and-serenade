@@ -34,9 +34,12 @@ function wholePesos(formData: FormData, name: string, label: string): number {
   return value;
 }
 
-/** Refreshes the storefront pages that show products. */
+/**
+ * Refreshes the storefront pages that show products. The landing page counts
+ * too, now that Featured Bouquets and Best Sellers read from the database.
+ */
 function revalidateStorefront(slug?: string) {
-  revalidatePath("/products");
+  revalidatePath("/", "layout");
   if (slug) revalidatePath(`/products/${slug}`);
 }
 
@@ -104,6 +107,16 @@ async function handle(id: string | null, formData: FormData): Promise<Outcome> {
     throw new Error("Position must be a whole number, 0 or higher.");
   }
 
+  // Blank means "not in the Best Sellers chart".
+  const rankRaw = optionalText(formData, "bestSellerRank");
+  const bestSellerRank = rankRaw === null ? null : Number(rankRaw);
+
+  if (bestSellerRank !== null && (!Number.isInteger(bestSellerRank) || bestSellerRank < 1)) {
+    throw new Error(
+      "Best seller rank must be a whole number of 1 or higher, or left blank.",
+    );
+  }
+
   const file = formData.get("imageUrlFile");
   let imageUrl = String(formData.get("imageUrl") ?? "").trim();
 
@@ -130,6 +143,7 @@ async function handle(id: string | null, formData: FormData): Promise<Outcome> {
     reviewCount,
     badge: optionalText(formData, "badge"),
     isFeatured: formData.get("isFeatured") !== null,
+    bestSellerRank,
     position,
   };
 

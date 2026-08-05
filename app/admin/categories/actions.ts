@@ -16,9 +16,12 @@ function requireText(formData: FormData, name: string, label: string): string {
   return text;
 }
 
-/** Refreshes the storefront pages that list categories. */
+/**
+ * Refreshes the storefront pages that list categories. Categories appear in the
+ * shared header and footer, so this covers every page under the site layout.
+ */
 function revalidateStorefront() {
-  revalidatePath("/products");
+  revalidatePath("/", "layout");
 }
 
 /** Where to go after a successful create or delete, if anywhere. */
