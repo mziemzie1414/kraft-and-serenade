@@ -53,6 +53,75 @@ model Theme {
   @@map("theme")
 }
 
+/// A bouquet category. Drives the filter rail on /products and, later, the
+/// category section on the landing page.
+model Category {
+  id   String @id @default(uuid())
+  /// URL segment, e.g. `rose-bouquets`.
+  slug String @unique
+
+  name String
+  /// Short form used where space is tight, e.g. filter chips and menus.
+  shortName   String
+  description String
+
+  imageUrl String
+  imageAlt String
+
+  /// Display order, low to high.
+  position Int
+
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("category")
+}
+
+/// A single bouquet design.
+model Product {
+  id   String @id @default(uuid())
+  slug String @unique
+
+  name        String
+  description String
+
+  /// Whole pesos. Bouquets are never priced in centavos, so an integer avoids
+  /// the rounding traps that come with floats.
+  price Int
+  /// Optional "was" price, used to render a strike-through and a savings badge.
+  compareAtPrice Int?
+
+  imageUrl String
+  imageAlt String
+
+  /// Placeholder social proof until real reviews exist.
+  rating      Float
+  reviewCount Int
+
+  /// Optional corner label, e.g. "New" or "Best value".
+  badge String?
+
+  /// Picked out for the Featured Bouquets section.
+  isFeatured Boolean @default(false)
+
+  /// Display order within a category listing, low to high.
+  position Int
+
+  categoryId String
+  /// Restricted rather than cascading: deleting a category that still has
+  /// products should fail loudly instead of silently binning the products.
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId, position])
+  @@index([isFeatured])
+  @@map("product")
+}
+
 /// Everything the Hero section renders. There is only ever one row; it is
 /// addressed by the fixed id `SINGLETON_ID` in lib/hero.ts.
 model HeroSection {

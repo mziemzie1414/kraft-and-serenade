@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ADMIN_SECTIONS, ADMIN_SETTINGS } from "./sections";
+import { ADMIN_CATALOGUE, ADMIN_SECTIONS, ADMIN_SETTINGS } from "./sections";
 
 function CardList({
   heading,
@@ -37,15 +37,13 @@ function CardList({
 export default function AdminHomePage() {
   return (
     <div className="max-w-2xl">
-      <h1 className="font-display text-2xl font-medium text-ink">
-        Landing page content
-      </h1>
+      <h1 className="font-display text-2xl font-medium text-ink">Site content</h1>
       <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-        Edit what visitors see on the home page. Changes go live as soon as you
-        save.
+        Edit what visitors see. Changes go live as soon as you save.
       </p>
 
       <CardList heading="Settings" items={ADMIN_SETTINGS} />
+      <CardList heading="Catalogue" items={ADMIN_CATALOGUE} />
       <CardList heading="Page sections" items={ADMIN_SECTIONS} />
     </div>
   );

@@ -10,8 +10,8 @@ import { Logo } from "@/components/ui/Logo";
 type NavLink = { label: string; href: string };
 
 const NAV_LINKS: NavLink[] = [
-  { label: "Home", href: "#top" },
-  { label: "Products", href: "#shop-by-category" },
+  { label: "Home", href: "/" },
+  { label: "Products", href: "/products" },
   { label: "FAQs", href: "#faqs" },
   { label: "Contact", href: "#contact" },
   { label: "About", href: "#about" },
@@ -183,7 +183,7 @@ export function Navbar() {
                             {CATEGORIES.map((category) => (
                               <li key={category.slug}>
                                 <Link
-                                  href={`#category-${category.slug}`}
+                                  href={`/products?category=${category.slug}`}
                                   onClick={() => setDesktopDropdownOpen(false)}
                                   className="group flex items-baseline justify-between gap-2 rounded-lg px-3 py-2 text-sm text-ink-soft transition-colors duration-200 hover:bg-moss-50 hover:text-moss-700"
                                 >
@@ -206,7 +206,7 @@ export function Navbar() {
                             {PROMO_CATEGORIES.map((category) => (
                               <li key={category.slug}>
                                 <Link
-                                  href={`#category-${category.slug}`}
+                                  href={`/products?category=${category.slug}`}
                                   onClick={() => setDesktopDropdownOpen(false)}
                                   className="flex items-center gap-3 rounded-xl p-1.5 transition-colors duration-200 hover:bg-canvas"
                                 >
@@ -332,7 +332,7 @@ export function Navbar() {
                     {CATEGORIES.map((category) => (
                       <li key={category.slug}>
                         <Link
-                          href={`#category-${category.slug}`}
+                          href={`/products?category=${category.slug}`}
                           onClick={closeMobile}
                           className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2.5 text-sm text-ink-soft"
                         >

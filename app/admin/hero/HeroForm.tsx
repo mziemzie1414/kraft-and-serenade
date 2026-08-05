@@ -7,105 +7,23 @@ import {
   TRUST_POINT_ICON_LABELS,
   type HeroContent,
 } from "@/lib/hero";
-import { saveHero, type HeroFormState } from "./actions";
-
-const INITIAL_STATE: HeroFormState = { status: "idle" };
+import { IDLE } from "../form-state";
+import {
+  Field,
+  Fieldset,
+  ImageField,
+  PrimaryButton,
+  StatusMessage,
+  inputClass,
+  labelClass,
+} from "../ui";
+import { saveHero } from "./actions";
 
 /** Reviewer photo slots shown, so an empty one can always be filled. */
 const AVATAR_SLOTS = 4;
 
 /** Blank trust bar rows appended for adding new items. */
 const SPARE_TRUST_ROWS = 2;
-
-const inputClass =
-  "w-full rounded-lg border border-canvas-deep bg-canvas px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-moss-400 focus:outline-none";
-
-const labelClass = "block text-xs font-semibold tracking-wide text-ink-soft uppercase";
-
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <span className={labelClass}>{label}</span>
-      {hint ? <span className="mt-1 block text-xs text-ink-faint">{hint}</span> : null}
-      <span className="mt-1.5 block">{children}</span>
-    </label>
-  );
-}
-
-function Fieldset({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <fieldset className="rounded-xl border border-canvas-deep bg-canvas p-5">
-      <legend className="px-1 font-display text-base font-medium text-ink">
-        {title}
-      </legend>
-      {description ? (
-        <p className="mb-4 text-sm leading-relaxed text-ink-soft">{description}</p>
-      ) : null}
-      <div className="space-y-4">{children}</div>
-    </fieldset>
-  );
-}
-
-/**
- * An image field. The current URL travels in a hidden input so the action can
- * keep it when no replacement file is chosen.
- */
-function ImageField({
-  name,
-  label,
-  currentUrl,
-  previewClassName,
-}: {
-  name: string;
-  label: string;
-  currentUrl: string;
-  previewClassName: string;
-}) {
-  return (
-    <div>
-      <span className={labelClass}>{label}</span>
-      <input type="hidden" name={name} value={currentUrl} />
-      <div className="mt-1.5 flex flex-wrap items-center gap-4">
-        {currentUrl ? (
-          <Image
-            src={currentUrl}
-            alt=""
-            width={160}
-            height={160}
-            className={`rounded-lg border border-canvas-deep object-cover ${previewClassName}`}
-            unoptimized
-          />
-        ) : null}
-        <input
-          type="file"
-          name={`${name}File`}
-          accept="image/jpeg,image/png,image/webp,image/avif"
-          aria-label={`Replace ${label.toLowerCase()}`}
-          className="text-sm text-ink-soft file:mr-3 file:rounded-full file:border-0 file:bg-moss-900 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-canvas hover:file:bg-moss-700"
-        />
-      </div>
-      <p className="mt-1.5 text-xs text-ink-faint">
-        Leave empty to keep the current image. Uploads are compressed to WebP.
-      </p>
-    </div>
-  );
-}
 
 export function HeroForm({
   hero,
@@ -114,7 +32,7 @@ export function HeroForm({
   hero: HeroContent;
   version: string;
 }) {
-  const [state, formAction, pending] = useActionState(saveHero, INITIAL_STATE);
+  const [state, formAction, pending] = useActionState(saveHero, IDLE);
 
   const avatarSlots = Array.from(
     { length: Math.max(hero.reviewAvatarUrls.length, AVATAR_SLOTS) },
@@ -182,7 +100,10 @@ export function HeroForm({
               required
             />
           </Field>
-          <Field label="Primary link" hint="A path like /shop or an anchor like #featured.">
+          <Field
+            label="Primary link"
+            hint="A path like /products or an anchor like #featured."
+          >
             <input
               name="primaryCtaHref"
               defaultValue={hero.primaryCtaHref}
@@ -374,26 +295,10 @@ export function HeroForm({
       </Fieldset>
 
       <div className="flex flex-wrap items-center gap-4">
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-full bg-moss-900 px-6 py-3 text-sm font-semibold text-canvas transition-colors hover:bg-moss-700 disabled:opacity-60"
-        >
+        <PrimaryButton pending={pending}>
           {pending ? "Saving…" : "Save changes"}
-        </button>
-
-        {state.status !== "idle" && state.message ? (
-          <p
-            role="status"
-            className={
-              state.status === "error"
-                ? "text-sm font-medium text-blush-600"
-                : "text-sm font-medium text-moss-600"
-            }
-          >
-            {state.message}
-          </p>
-        ) : null}
+        </PrimaryButton>
+        <StatusMessage state={state} />
       </div>
     </form>
   );

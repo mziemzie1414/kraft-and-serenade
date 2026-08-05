@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ADMIN_SECTIONS, ADMIN_SETTINGS } from "./sections";
+import { ADMIN_CATALOGUE, ADMIN_SECTIONS, ADMIN_SETTINGS } from "./sections";
 
 export const metadata: Metadata = {
   title: "Admin",
@@ -55,6 +55,7 @@ export default function AdminLayout({ children }: LayoutProps<"/admin">) {
 
         <nav aria-label="Admin" className="space-y-5 px-3 pb-6">
           <NavGroup heading="Settings" items={ADMIN_SETTINGS} />
+          <NavGroup heading="Catalogue" items={ADMIN_CATALOGUE} />
           <NavGroup heading="Page sections" items={ADMIN_SECTIONS} />
         </nav>
 

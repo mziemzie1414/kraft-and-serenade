@@ -10,10 +10,7 @@ import {
   type ThemeContent,
 } from "@/lib/theme";
 
-export type ThemeFormState = {
-  status: "idle" | "saved" | "error";
-  message?: string;
-};
+import type { AdminFormState } from "../form-state";
 
 async function write(theme: ThemeContent) {
   await prisma.theme.upsert({
@@ -28,9 +25,9 @@ async function write(theme: ThemeContent) {
 }
 
 export async function saveTheme(
-  _prevState: ThemeFormState,
+  _prevState: AdminFormState,
   formData: FormData,
-): Promise<ThemeFormState> {
+): Promise<AdminFormState> {
   try {
     // The "Reset" button submits the same form with a different intent, so both
     // paths share one action and one status message.

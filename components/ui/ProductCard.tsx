@@ -5,22 +5,28 @@ import { BagIcon } from "./Icons";
 import { Rating } from "./Rating";
 
 /**
- * Product tile used by both Featured Bouquets and Best Sellers.
+ * Product tile used by the catalogue as well as Featured Bouquets and Best
+ * Sellers.
  *
- * There is no cart in this frontend-only build, so the action is a link to the
- * relevant category rather than a button that pretends to add to a basket.
+ * There is no cart yet, so the tile links through to the product rather than
+ * pretending to add to a basket.
  */
 export function ProductCard({
   product,
   priority = false,
   layout = "grid",
+  href = "#shop-by-category",
 }: {
   product: Product;
   /** Set on above-the-fold tiles so Next preloads them instead of lazy-loading. */
   priority?: boolean;
   layout?: "grid" | "wide";
+  /**
+   * Where the tile links. Defaults to the landing page's category anchor, which
+   * is all the still-hard-coded sections can offer.
+   */
+  href?: string;
 }) {
-  const href = "#shop-by-category";
   const isWide = layout === "wide";
 
   return (

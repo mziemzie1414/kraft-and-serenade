@@ -8,9 +8,9 @@ import {
   type ThemeContent,
   type ThemeTokenKey,
 } from "@/lib/theme";
-import { saveTheme, type ThemeFormState } from "./actions";
-
-const INITIAL_STATE: ThemeFormState = { status: "idle" };
+import { IDLE } from "../form-state";
+import { PrimaryButton, SecondaryButton, StatusMessage } from "../ui";
+import { saveTheme } from "./actions";
 
 /** `<input type="color">` only accepts `#rrggbb`, so widen shorthand hex. */
 function toPickerValue(value: string): string {
@@ -28,7 +28,7 @@ export function ThemeForm({
   theme: ThemeContent;
   version: string;
 }) {
-  const [state, formAction, pending] = useActionState(saveTheme, INITIAL_STATE);
+  const [state, formAction, pending] = useActionState(saveTheme, IDLE);
   const [colors, setColors] = useState<ThemeContent>(theme);
 
   function update(key: ThemeTokenKey, value: string) {
@@ -129,36 +129,15 @@ export function ThemeForm({
       </section>
 
       <div className="flex flex-wrap items-center gap-4">
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-full bg-moss-900 px-6 py-3 text-sm font-semibold text-canvas transition-colors hover:bg-moss-700 disabled:opacity-60"
-        >
+        <PrimaryButton pending={pending}>
           {pending ? "Saving…" : "Save colours"}
-        </button>
+        </PrimaryButton>
 
-        <button
-          type="submit"
-          name="intent"
-          value="reset"
-          disabled={pending}
-          className="rounded-full border border-canvas-deep px-5 py-3 text-sm font-semibold text-ink-soft transition-colors hover:border-ink-faint hover:text-ink disabled:opacity-60"
-        >
+        <SecondaryButton type="submit" name="intent" value="reset" pending={pending}>
           Reset to original
-        </button>
+        </SecondaryButton>
 
-        {state.status !== "idle" && state.message ? (
-          <p
-            role="status"
-            className={
-              state.status === "error"
-                ? "text-sm font-medium text-blush-600"
-                : "text-sm font-medium text-moss-600"
-            }
-          >
-            {state.message}
-          </p>
-        ) : null}
+        <StatusMessage state={state} />
       </div>
     </form>
   );

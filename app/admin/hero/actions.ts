@@ -5,10 +5,7 @@ import { HERO_ID, isTrustPointIcon } from "@/lib/hero";
 import { prisma } from "@/lib/prisma";
 import { uploadImage } from "@/lib/storage";
 
-export type HeroFormState = {
-  status: "idle" | "saved" | "error";
-  message?: string;
-};
+import type { AdminFormState } from "../form-state";
 
 /** Trims a required text field, or reports the label that was left blank. */
 function requireText(formData: FormData, name: string, label: string): string {
@@ -119,9 +116,9 @@ function resolveTrustPoints(formData: FormData) {
 }
 
 export async function saveHero(
-  _prevState: HeroFormState,
+  _prevState: AdminFormState,
   formData: FormData,
-): Promise<HeroFormState> {
+): Promise<AdminFormState> {
   try {
     const ratingValue = Number(readText(formData, "ratingValue"));
 

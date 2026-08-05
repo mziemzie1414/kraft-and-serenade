@@ -8,6 +8,22 @@ export const ADMIN_SETTINGS = [
   },
 ] as const;
 
+/** The shop itself. Shared by the storefront and, later, the landing page. */
+export const ADMIN_CATALOGUE = [
+  {
+    name: "Categories",
+    href: "/admin/categories",
+    description:
+      "Bouquet types customers browse by. Each product belongs to one of these.",
+  },
+  {
+    name: "Products",
+    href: "/admin/products",
+    description:
+      "Every bouquet design: photo, price, rating and whether it is featured.",
+  },
+] as const;
+
 /**
  * Landing page sections that can be edited from the admin panel.
  *
