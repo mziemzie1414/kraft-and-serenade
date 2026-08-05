@@ -54,4 +54,20 @@ export const ADMIN_SECTIONS = [
     href: "/admin/how-it-works",
     description: "The four numbered steps and the callout panel under them.",
   },
+  {
+    name: "Customer reviews",
+    href: "/admin/reviews",
+    description: "The curated quote cards, with a photo and star rating each.",
+  },
+  {
+    name: "Studio gallery",
+    href: "/admin/gallery",
+    description: "The Instagram-style photo grid and its follow button.",
+  },
+  {
+    name: "Promo banner",
+    href: "/admin/promo",
+    description:
+      "The seasonal offer: copy, background photo, buttons and discount code. Can be switched off.",
+  },
 ] as const;

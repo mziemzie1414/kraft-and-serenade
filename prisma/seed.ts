@@ -1,8 +1,11 @@
 import "dotenv/config";
 import { BEST_SELLERS, CATEGORIES, FEATURED_PRODUCTS, OCCASIONS } from "../lib/data";
 import { HERO_DEFAULTS, HERO_ID } from "../lib/hero";
+import { GALLERY_DEFAULTS, GALLERY_ID } from "../lib/gallery";
 import { HOW_IT_WORKS_DEFAULTS, HOW_IT_WORKS_ID } from "../lib/how-it-works";
 import { prisma } from "../lib/prisma";
+import { PROMO_DEFAULTS, PROMO_ID } from "../lib/promo";
+import { REVIEWS_DEFAULTS, REVIEWS_ID } from "../lib/reviews";
 import { THEME_DEFAULTS, THEME_ID } from "../lib/theme";
 import { WHY_CHOOSE_US_DEFAULTS, WHY_CHOOSE_US_ID } from "../lib/why-choose-us";
 
@@ -89,6 +92,49 @@ async function seedSections() {
       position: index,
       sectionId: HOW_IT_WORKS_ID,
     })),
+  });
+}
+
+/** Reviews, gallery and promo banner. */
+async function seedMoreSections() {
+  const { reviews, ...reviewsSection } = REVIEWS_DEFAULTS;
+
+  await prisma.reviewsSection.upsert({
+    where: { id: REVIEWS_ID },
+    create: { id: REVIEWS_ID, ...reviewsSection },
+    update: reviewsSection,
+  });
+
+  await prisma.review.deleteMany({ where: { sectionId: REVIEWS_ID } });
+  await prisma.review.createMany({
+    data: reviews.map((review, index) => ({
+      ...review,
+      position: index,
+      sectionId: REVIEWS_ID,
+    })),
+  });
+
+  const { images, ...gallerySection } = GALLERY_DEFAULTS;
+
+  await prisma.gallerySection.upsert({
+    where: { id: GALLERY_ID },
+    create: { id: GALLERY_ID, ...gallerySection },
+    update: gallerySection,
+  });
+
+  await prisma.galleryImage.deleteMany({ where: { sectionId: GALLERY_ID } });
+  await prisma.galleryImage.createMany({
+    data: images.map((image, index) => ({
+      ...image,
+      position: index,
+      sectionId: GALLERY_ID,
+    })),
+  });
+
+  await prisma.promoBannerSection.upsert({
+    where: { id: PROMO_ID },
+    create: { id: PROMO_ID, ...PROMO_DEFAULTS },
+    update: PROMO_DEFAULTS,
   });
 }
 
@@ -257,11 +303,13 @@ async function seedCatalog() {
 async function main() {
   await seedSiteContent();
   await seedSections();
+  await seedMoreSections();
   const counts = await seedCatalog();
 
   console.log(
-    `Seeded theme, hero, why-choose-us, how-it-works, ${counts.categories} categories, ` +
-      `${counts.products} products and ${counts.occasions} occasions.`,
+    "Seeded theme, hero, why-choose-us, how-it-works, reviews, gallery, promo, " +
+      `${counts.categories} categories, ${counts.products} products and ` +
+      `${counts.occasions} occasions.`,
   );
 }
 

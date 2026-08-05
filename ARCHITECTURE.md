@@ -74,6 +74,9 @@ app/
     hero/                 hero section
     why-choose-us/        studio photos, selling points, stat strip
     how-it-works/         numbered steps and callout
+    reviews/              curated customer quotes
+    gallery/              studio photo grid
+    promo/                seasonal banner, with an on/off switch
     categories/           list, new, [id]
     products/             list, new, [id]
     occasions/            list, new, [id]
@@ -90,22 +93,25 @@ two can never disagree about what the shop contains.
 
 ## Data model
 
-`prisma/schema.prisma`. Six migrations so far: `hero_section`, `theme`,
-`catalog`, `best_seller_rank`, `occasion`,
-`why_choose_us_and_how_it_works`.
+`prisma/schema.prisma`. Seven migrations so far: `hero_section`, `theme`,
+`catalog`, `best_seller_rank`, `occasion`, `why_choose_us_and_how_it_works`,
+`reviews_gallery_promo`.
 
-**Singletons.** `Theme`, `HeroSection`, `WhyChooseUsSection` and
-`HowItWorksSection` each hold exactly one row, addressed by a fixed id
-(`"theme"`, `"hero"`, `"why-choose-us"`, `"how-it-works"`). A known id keeps reads
-and the admin upsert trivial, with no "which row is live?" question to answer.
+**Singletons.** Each landing-page section holds exactly one row, addressed by a
+fixed id. A known id keeps reads and the admin upsert trivial, with no "which row
+is live?" question to answer.
 
-Each of those has ordered child lists, cascading on delete:
+| Model                  | Id               | Ordered children                      |
+| ---------------------- | ---------------- | ------------------------------------- |
+| `Theme`                | `theme`          | —                                     |
+| `HeroSection`          | `hero`           | `HeroTrustPoint`                      |
+| `WhyChooseUsSection`   | `why-choose-us`  | `WhyChooseUsPoint`, `WhyChooseUsStat` |
+| `HowItWorksSection`    | `how-it-works`   | `HowItWorksStep`                      |
+| `ReviewsSection`       | `reviews`        | `Review`                              |
+| `GallerySection`       | `gallery`        | `GalleryImage`                        |
+| `PromoBannerSection`   | `promo`          | —                                     |
 
-| Section              | Children                                  |
-| -------------------- | ----------------------------------------- |
-| `HeroSection`        | `HeroTrustPoint`                          |
-| `WhyChooseUsSection` | `WhyChooseUsPoint`, `WhyChooseUsStat`     |
-| `HowItWorksSection`  | `HowItWorksStep`                          |
+Children cascade on delete.
 
 Child lists are replaced wholesale on save — delete all, then re-create from the
 submitted rows inside one transaction — so `position` is always a dense
@@ -166,10 +172,17 @@ are Client Components and would otherwise pull Prisma into the browser bundle.
 The pure modules hold types, defaults, validation, and small helpers. If you add
 a **runtime value** an admin form needs, it belongs on the left.
 
-`lib/why-choose-us.ts` and `lib/how-it-works.ts` are not split, because their
+The per-section modules — `lib/why-choose-us.ts`, `lib/how-it-works.ts`,
+`lib/reviews.ts`, `lib/gallery.ts`, `lib/promo.ts` — are not split, because their
 forms need only types from them, and `import type` is erased at compile time so
-Prisma never reaches the bundle. Split them the moment a form needs a real value
-out of one.
+Prisma never reaches the bundle. Split one the moment a form needs a real value
+out of it.
+
+Each follows the same shape: an id constant, a `Content` type, a `*_DEFAULTS`
+object holding the content the site shipped with, a `get*Record()` returning the
+row or `null`, and a `get*Content()` falling back to the defaults. The defaults
+serve double duty as the seed source, so there is one copy of the original
+content rather than two.
 
 `lib/data.ts` is the original hard-coded content. It is still the source for the
 sections listed below, and the seed script reads it to populate the database.
@@ -210,6 +223,9 @@ Mutations call `revalidatePath`, which matters because `/` is prerendered:
 | Occasions      | `revalidatePath("/")`                                      |
 | Why choose us  | `revalidatePath("/")`                                      |
 | How it works   | `revalidatePath("/")`                                      |
+| Reviews        | `revalidatePath("/")`                                      |
+| Gallery        | `revalidatePath("/")`                                      |
+| Promo banner   | `revalidatePath("/")`                                      |
 
 ## Images
 
@@ -227,16 +243,14 @@ Supabase URLs work, since `next/image` handles either.
 
 These sections read `lib/data.ts` and have no admin page yet:
 
-| Section             | Constant         |
-| ------------------- | ---------------- |
-| `CustomerReviews`   | `REVIEWS`        |
-| `InstagramGallery`  | `GALLERY_IMAGES` |
-| `FaqSection`        | `FAQS`           |
-| `PromoBanner`       | in-component     |
-| `Newsletter`        | in-component     |
+| Section      | Constant     |
+| ------------ | ------------ |
+| `FaqSection` | `FAQS`       |
+| `Newsletter` | in-component |
 
-Also still in `lib/data.ts`: `BRAND` (used by the footer, logo, and metadata) and
-`BUSINESS_HOURS`.
+Also still in `lib/data.ts`: `BRAND` (used by the footer, logo, and metadata),
+`BUSINESS_HOURS` (the footer), and `formatPrice`, which is a shared helper rather
+than content and can stay.
 
 ## Known gaps
 
@@ -248,8 +262,12 @@ Also still in `lib/data.ts`: `BRAND` (used by the footer, logo, and metadata) an
 - **Product descriptions are placeholders.** `lib/data.ts` never had any, so the
   blurbs in `prisma/seed.ts` were written to give the detail pages something to
   render. They are not real copy.
-- **Ratings and review counts are decorative.** They are editable numbers with no
-  reviews behind them.
+- **Ratings and review counts are decorative.** `Product.rating` and
+  `Product.reviewCount` are editable numbers with nothing behind them, and the
+  `Review` rows are curated quotes rather than submissions. Real reviews would
+  mean a table keyed on `Product` and deriving those two figures from it.
+- **The gallery has no real Instagram link.** `GallerySection.ctaHref` is seeded
+  as `#gallery`; set the actual profile URL in `/admin/gallery`.
 - **No cart or checkout.** Product pages link to the contact section instead.
 - **Two categories have no products.** Graduation and Money Bouquets, because the
   original hard-coded data had none. They render an empty state.

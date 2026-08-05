@@ -296,6 +296,120 @@ model HowItWorksStep {
   @@map("how_it_works_step")
 }
 
+/// The "Customer reviews" section. One row, addressed by a fixed id.
+model ReviewsSection {
+  id String @id
+
+  eyebrow String
+  title   String
+  lede    String
+
+  reviews Review[]
+
+  updatedAt DateTime @updatedAt
+
+  @@map("reviews_section")
+}
+
+/// A curated customer quote.
+///
+/// These are testimonials chosen for the landing page, not reviews attached to a
+/// product. Real per-product reviews would be a separate table keyed on
+/// `Product`, which is also where `Product.rating` would stop being decorative.
+model Review {
+  id       String @id @default(uuid())
+  name     String
+  location String
+  quote    String
+
+  /// Whole stars, 1 to 5. The card renders them rounded anyway.
+  rating Int
+
+  avatarUrl String
+  /// What they bought, as free text. Deliberately not a relation: some of these
+  /// name a bouquet type rather than a product that still exists.
+  purchased String
+
+  position Int
+
+  sectionId String
+  section   ReviewsSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@index([sectionId, position])
+  @@map("review")
+}
+
+/// The Instagram-style studio gallery. One row, addressed by a fixed id.
+model GallerySection {
+  id String @id
+
+  eyebrow String
+  title   String
+  lede    String
+
+  ctaLabel String
+  ctaHref  String
+
+  images GalleryImage[]
+
+  updatedAt DateTime @updatedAt
+
+  @@map("gallery_section")
+}
+
+/// One tile in the gallery grid.
+model GalleryImage {
+  id       String @id @default(uuid())
+  imageUrl String
+  /// Describes the photo for screen readers.
+  alt String
+  /// Shown over the tile on hover.
+  caption String
+
+  /// Optional destination, e.g. the Instagram post. Tiles without one render as
+  /// plain images rather than links that go nowhere.
+  linkUrl String?
+
+  position Int
+
+  sectionId String
+  section   GallerySection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@index([sectionId, position])
+  @@map("gallery_image")
+}
+
+/// The seasonal promo banner. One row, addressed by a fixed id.
+model PromoBannerSection {
+  id String @id
+
+  /// Promos are seasonal, so the whole section can be switched off without
+  /// deleting the copy that took someone an afternoon to write.
+  isPublished Boolean @default(true)
+
+  badge String
+  title String
+  body  String
+
+  imageUrl String
+  imageAlt String
+
+  primaryCtaLabel String
+  primaryCtaHref  String
+  /// The second button is optional; it renders only when both parts are set.
+  secondaryCtaLabel String?
+  secondaryCtaHref  String?
+
+  /// The discount code card. A blank `code` hides the card entirely.
+  codeLabel String
+  code      String?
+  codeNote  String
+
+  updatedAt DateTime @updatedAt
+
+  @@map("promo_banner_section")
+}
+
 /// A single item in the trust bar pinned to the bottom of the Hero.
 model HeroTrustPoint {
   id    String @id @default(uuid())
