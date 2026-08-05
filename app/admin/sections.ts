@@ -20,7 +20,13 @@ export const ADMIN_CATALOGUE = [
     name: "Products",
     href: "/admin/products",
     description:
-      "Every bouquet design: photo, price, rating and whether it is featured.",
+      "Every bouquet design: photo, price, rating, whether it is featured and its best seller rank.",
+  },
+  {
+    name: "Occasions",
+    href: "/admin/occasions",
+    description:
+      "The \u201cShop by occasion\u201d tiles on the home page, each pointing at a category.",
   },
 ] as const;
 

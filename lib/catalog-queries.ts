@@ -9,6 +9,18 @@ export async function listCategories() {
   });
 }
 
+/** Occasion tiles in display order, with the category each one leads to. */
+export async function listOccasions() {
+  return prisma.occasion.findMany({
+    orderBy: { position: "asc" },
+    include: { category: { select: { slug: true, name: true } } },
+  });
+}
+
+export async function getOccasionById(id: string) {
+  return prisma.occasion.findUnique({ where: { id } });
+}
+
 export async function getCategoryById(id: string) {
   return prisma.category.findUnique({ where: { id } });
 }

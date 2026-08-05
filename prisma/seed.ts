@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { BEST_SELLERS, CATEGORIES, FEATURED_PRODUCTS } from "../lib/data";
+import { BEST_SELLERS, CATEGORIES, FEATURED_PRODUCTS, OCCASIONS } from "../lib/data";
 import { HERO_DEFAULTS, HERO_ID } from "../lib/hero";
 import { prisma } from "../lib/prisma";
 import { THEME_DEFAULTS, THEME_ID } from "../lib/theme";
@@ -147,7 +147,53 @@ async function seedCatalog() {
     });
   }
 
-  return { categories: CATEGORIES.length, products: products.length };
+  // Occasion tiles. Four of the six line up with a category; "congratulations"
+  // and "just because" have no equivalent, so those tiles link to everything.
+  const occasionCategorySlugs: Record<string, string | null> = {
+    graduation: "graduation-bouquets",
+    birthday: "birthday-bouquets",
+    anniversary: "anniversary-bouquets",
+    wedding: "wedding-bouquets",
+    congratulations: null,
+    "just-because": null,
+  };
+
+  const categoryIdBySlug = new Map(
+    (await prisma.category.findMany({ select: { id: true, slug: true } })).map(
+      (row) => [row.slug, row.id],
+    ),
+  );
+
+  for (const [index, occasion] of OCCASIONS.entries()) {
+    const categorySlug = occasionCategorySlugs[occasion.slug] ?? null;
+
+    if (categorySlug && !categoryIdBySlug.has(categorySlug)) {
+      throw new Error(
+        `Occasion "${occasion.slug}" points at unknown category "${categorySlug}".`,
+      );
+    }
+
+    const data = {
+      name: occasion.name,
+      blurb: occasion.blurb,
+      imageUrl: occasion.image,
+      imageAlt: occasion.imageAlt,
+      position: index,
+      categoryId: categorySlug ? categoryIdBySlug.get(categorySlug)! : null,
+    };
+
+    await prisma.occasion.upsert({
+      where: { slug: occasion.slug },
+      create: { slug: occasion.slug, ...data },
+      update: data,
+    });
+  }
+
+  return {
+    categories: CATEGORIES.length,
+    products: products.length,
+    occasions: OCCASIONS.length,
+  };
 }
 
 /**
@@ -159,8 +205,8 @@ async function main() {
   const counts = await seedCatalog();
 
   console.log(
-    `Seeded theme, hero_section, hero_trust_point, ` +
-      `${counts.categories} categories and ${counts.products} products.`,
+    `Seeded theme, hero_section, hero_trust_point, ${counts.categories} categories, ` +
+      `${counts.products} products and ${counts.occasions} occasions.`,
   );
 }
 

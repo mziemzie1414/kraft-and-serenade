@@ -1,9 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
-import { OCCASIONS } from "@/lib/data";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { listOccasions } from "@/lib/catalog-queries";
+import { categoryHref } from "@/lib/nav";
 
-export function ShopByOccasion() {
+export async function ShopByOccasion() {
+  const occasions = await listOccasions();
+
+  if (occasions.length === 0) return null;
+
   return (
     <section id="occasions" className="scroll-mt-24 bg-canvas py-20 sm:py-24 lg:py-28">
       <div className="container-page">
@@ -14,14 +19,20 @@ export function ShopByOccasion() {
         />
 
         <ul className="mt-12 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-6">
-          {OCCASIONS.map((occasion) => (
-            <li key={occasion.slug}>
+          {occasions.map((occasion) => (
+            <li key={occasion.id}>
               <Link
-                href="#shop-by-category"
+                /* Falls back to the full catalogue when the occasion is not
+                   pinned to a category. */
+                href={
+                  occasion.category
+                    ? categoryHref(occasion.category.slug)
+                    : "/products"
+                }
                 className="group relative flex aspect-4/5 flex-col justify-end overflow-hidden rounded-2xl bg-canvas-deep p-4 lg:aspect-3/4"
               >
                 <Image
-                  src={occasion.image}
+                  src={occasion.imageUrl}
                   alt={occasion.imageAlt}
                   fill
                   sizes="(min-width: 1024px) 16vw, 45vw"

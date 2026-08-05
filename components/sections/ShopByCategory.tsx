@@ -1,10 +1,15 @@
 import Image from "next/image";
 import Link from "next/link";
-import { CATEGORIES } from "@/lib/data";
 import { ArrowRightIcon } from "@/components/ui/Icons";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { listCategories } from "@/lib/catalog-queries";
+import { categoryHref } from "@/lib/nav";
 
-export function ShopByCategory() {
+export async function ShopByCategory() {
+  const categories = await listCategories();
+
+  if (categories.length === 0) return null;
+
   return (
     <section
       id="shop-by-category"
@@ -14,31 +19,31 @@ export function ShopByCategory() {
         <SectionHeading
           eyebrow="Shop by category"
           title="Every bouquet type we make"
-          lede="The same ten categories you will find in the Products menu. Counts are live designs, not archived ones."
+          lede={`The same ${categories.length} categories you will find in the Products menu. Counts are live designs, not archived ones.`}
         />
 
         <ul className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {CATEGORIES.map((category) => (
+          {categories.map((category) => (
             <li
-              key={category.slug}
-              /* Anchor target for the Products dropdown links. */
+              key={category.id}
+              /* Anchor target kept for any existing deep links. */
               id={`category-${category.slug}`}
               className="scroll-mt-28"
             >
               <Link
-                href="#featured"
+                href={categoryHref(category.slug)}
                 className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-canvas-deep bg-canvas transition-all duration-500 hover:-translate-y-1 hover:border-moss-100 hover:shadow-lift"
               >
                 <div className="relative aspect-square overflow-hidden bg-canvas-deep">
                   <Image
-                    src={category.image}
+                    src={category.imageUrl}
                     alt={category.imageAlt}
                     fill
                     sizes="(min-width: 1280px) 18vw, (min-width: 1024px) 30vw, (min-width: 640px) 45vw, 90vw"
                     className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                   />
                   <span className="absolute top-3 right-3 rounded-full bg-canvas/95 px-2.5 py-1 text-[0.65rem] font-semibold text-moss-700 backdrop-blur">
-                    {category.itemCount}
+                    {category._count.products}
                   </span>
                 </div>
 

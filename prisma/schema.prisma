@@ -71,12 +71,43 @@ model Category {
   /// Display order, low to high.
   position Int
 
-  products Product[]
+  products  Product[]
+  occasions Occasion[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("category")
+}
+
+/// An occasion tile in the "Shop by Occasion" section.
+///
+/// Occasions are a way in rather than a taxonomy: there is no product-to-occasion
+/// tagging. Each tile optionally points at a category, which is enough to get the
+/// visitor to a relevant listing without a second classification to maintain.
+model Occasion {
+  id   String @id @default(uuid())
+  slug String @unique
+
+  name String
+  /// One short line, revealed on hover.
+  blurb String
+
+  imageUrl String
+  imageAlt String
+
+  /// Display order, low to high.
+  position Int
+
+  /// Where the tile leads. Cleared rather than blocking if the category goes
+  /// away, in which case the tile falls back to the full catalogue.
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("occasion")
 }
 
 /// A single bouquet design.
